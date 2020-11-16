@@ -1,12 +1,8 @@
 package com.nyu.repcrec.service;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 
-@AllArgsConstructor
-@NoArgsConstructor
 @Data
 @EqualsAndHashCode
 public class Site {
@@ -15,4 +11,23 @@ public class Site {
     private boolean isUp;
     private LockManager lockManager;
     private DataManager dataManager;
+
+    public Site(int id) {
+        this.siteId = id;
+        isUp = true;
+        lockManager = new LockManager();
+        dataManager = new DataManager();
+    }
+
+    public void addDataValue(Integer key, Integer value) {
+        dataManager.insertData(key, value);
+    }
+
+    public void fail() {
+
+    }
+
+    public void recover() {
+
+    }
 }
