@@ -1,6 +1,9 @@
-package com.nyu.repcrec;
+package com.nyu.repcrec.service;
 
 import lombok.EqualsAndHashCode;
+
+import java.util.List;
+import java.util.Map;
 
 @EqualsAndHashCode
 public class TransactionManager {
