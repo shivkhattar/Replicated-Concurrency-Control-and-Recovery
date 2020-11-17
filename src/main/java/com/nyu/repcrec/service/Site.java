@@ -19,8 +19,8 @@ public class Site {
         dataManager = new DataManager();
     }
 
-    public void addDataValue(Integer key, Integer value) {
-        dataManager.insertData(key, value);
+    public void addDataValue(Integer variable, Integer value) {
+        dataManager.insertData(variable, value);
     }
 
     public void fail() {
@@ -30,4 +30,10 @@ public class Site {
     public void recover() {
 
     }
+
+    public Integer readValue(Transaction transaction, Integer variable) {
+        if (!transaction.isReadOnly()) lockManager.addReadLock(transaction, variable);
+        return dataManager.readValue(variable, transaction.isReadOnly());
+    }
+
 }

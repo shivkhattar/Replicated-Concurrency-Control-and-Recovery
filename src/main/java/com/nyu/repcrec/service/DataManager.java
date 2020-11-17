@@ -16,7 +16,15 @@ public class DataManager {
         data = new HashMap<>();
     }
 
-    public void insertData(Integer key, Integer value) {
-        data.put(key, new DataValue(value, value));
+    public void insertData(Integer variable, Integer value) {
+        data.put(variable, new DataValue(value, value));
+    }
+
+    public Integer readValue(Integer variable, boolean readCommittedValue) {
+        if (!data.containsKey(variable)) {
+            throw new RepCRecException("Invalid variable accessed!");
+        }
+        DataValue values = data.get(variable);
+        return readCommittedValue ? values.getLastCommittedValue() : values.getCurrentValue();
     }
 }
