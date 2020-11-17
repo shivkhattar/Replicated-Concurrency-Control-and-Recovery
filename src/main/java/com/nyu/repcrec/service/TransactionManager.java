@@ -226,9 +226,9 @@ public class TransactionManager {
             return;
         }
         if (operation.getOperationType().equals(OperationType.READ)) {
-            blockRead(transaction, site.getLockManager(), variable, operation);
+            blockRead(transaction, site, variable, operation);
         } else if (operation.getOperationType().equals(OperationType.WRITE)) {
-            blockWrite(transaction, site.getLockManager(), variable, operation);
+            blockWrite(transaction, site, variable, operation);
         }
         //TODO: Add Deadlock detection
     }
@@ -240,34 +240,34 @@ public class TransactionManager {
         FileUtils.log("T" + transaction.getTransactionId() + " waiting for Site" + site.getSiteId());
     }
 
-    private void blockRead(Transaction transaction, LockManager lockManager, Integer variable, Operation operation) {
-        addWaitsForWriteLock(transaction, lockManager, variable);
+    private void blockRead(Transaction transaction, Site site, Integer variable, Operation operation) {
+        addWaitsForWriteLock(transaction, site, variable);
         addWaitingOperation(variable, operation);
     }
 
-    private void blockWrite(Transaction transaction, LockManager lockManager, Integer variable, Operation operation) {
-        addWaitsForWriteLock(transaction, lockManager, variable);
-        addWaitsForReadLock(transaction, lockManager, variable);
+    private void blockWrite(Transaction transaction, Site site, Integer variable, Operation operation) {
+        addWaitsForWriteLock(transaction, site, variable);
+        addWaitsForReadLock(transaction, site, variable);
         addWaitingOperation(variable, operation);
     }
 
-    private void addWaitsForWriteLock(Transaction transaction, LockManager lockManager, Integer variable) {
-        Optional<Transaction> waitsFor = lockManager.waitsForWriteTransaction(variable);
-        waitsFor.ifPresent(waitsForTransaction -> addToWaitingTransactions(waitsForTransaction, transaction));
+    private void addWaitsForWriteLock(Transaction transaction, Site site, Integer variable) {
+        Optional<Transaction> waitsFor = site.getLockManager().waitsForWriteTransaction(variable);
+        waitsFor.ifPresent(waitsForTransaction -> addToWaitingTransactions(waitsForTransaction, transaction, site, variable));
     }
 
-    private void addWaitsForReadLock(Transaction transaction, LockManager lockManager, Integer variable) {
-        List<Transaction> waitsFor = lockManager.waitsForReadTransaction(variable);
-        waitsFor.forEach(waitsForTransaction -> addToWaitingTransactions(waitsForTransaction, transaction));
+    private void addWaitsForReadLock(Transaction transaction, Site site, Integer variable) {
+        List<Transaction> waitsFor = site.getLockManager().waitsForReadTransaction(variable);
+        waitsFor.forEach(waitsForTransaction -> addToWaitingTransactions(waitsForTransaction, transaction, site, variable));
     }
 
-    private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction) {
+    private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer variable) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
         transaction.setTransactionStatus(TransactionStatus.WAITING);
         List<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
         waitingList.add(transaction);
         waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
-        FileUtils.log("T" + transaction.getTransactionId() + " waiting for T" + waitsFor.getTransactionId());
+        FileUtils.log("T" + transaction.getTransactionId() + " waiting for T" + waitsFor.getTransactionId() + " at site" + site.getSiteId() + " for x" + variable);
     }
 
     private void addWaitingOperation(Integer variable, Operation operation) {
