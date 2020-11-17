@@ -51,4 +51,9 @@ public class Site {
         return dataManager.readValue(variable, transaction.isReadOnly(), transaction.getTimestamp());
     }
 
+    public void writeValue(Transaction transaction, Integer variable, Integer writeValue) {
+        lockManager.addWriteLock(transaction, variable);
+        dataManager.writeValue(variable, writeValue);
+    }
+
 }

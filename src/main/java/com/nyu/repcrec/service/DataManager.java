@@ -28,6 +28,14 @@ public class DataManager {
         return readCommittedValue ? values.getLastCommittedValues().floorEntry(timestamp).getValue() : values.getCurrentValue();
     }
 
+    public void writeValue(Integer variable, Integer writeValue) {
+        if (!data.containsKey(variable)) {
+            throw new RepCRecException("Invalid variable accessed in readValue!");
+        }
+        DataValue values = data.get(variable);
+        values.setCurrentValue(writeValue);
+    }
+
     public void moveValueBackToCommittedValueAtTime(Integer variable, Integer timestamp) {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in moveValueBackToCommittedValueAtTime!");
