@@ -1,14 +1,26 @@
 package com.nyu.repcrec.service;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-@AllArgsConstructor
+import java.util.TreeMap;
+
 @Data
 @EqualsAndHashCode
 public class DataValue {
-    private Integer lastCommittedValue;
     private Integer currentValue;
+    private TreeMap<Integer, Integer> lastCommittedValues;
 
+    public DataValue(Integer currentValue, Integer timestamp, Integer committedValue) {
+        this.currentValue = currentValue;
+        this.lastCommittedValues = new TreeMap<>();
+        lastCommittedValues.put(timestamp, committedValue);
+    }
+
+    public void insertNewCommittedValue(Integer timestamp, Integer committedValue) {
+        if (this.lastCommittedValues == null) {
+            this.lastCommittedValues = new TreeMap<>();
+        }
+        lastCommittedValues.put(timestamp, committedValue);
+    }
 }

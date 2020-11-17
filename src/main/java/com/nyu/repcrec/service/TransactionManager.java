@@ -22,7 +22,7 @@ public class TransactionManager {
     private static final Integer MAX_VARIABLE = 20;
 
     public TransactionManager() {
-        currentTimestamp = 1;
+        currentTimestamp = 0;
         transactions = new ArrayList<>();
         sites = new ArrayList<>();
         waitingTransactions = new HashMap<>();
@@ -41,11 +41,11 @@ public class TransactionManager {
     }
 
     private void addVariableAtAllSites(int variable) {
-        sites.forEach(site -> site.addDataValue(variable, 10 * variable));
+        sites.forEach(site -> site.addDataValue(variable, currentTimestamp, 10 * variable));
     }
 
     private void addVariableAtSiteId(int variable, int siteid) {
-        sites.get(siteid).addDataValue(variable, 10 * variable);
+        sites.get(siteid).addDataValue(variable, currentTimestamp, 10 * variable);
     }
 
     private boolean isOddVariable(Integer variable) {
@@ -57,6 +57,7 @@ public class TransactionManager {
     }
 
     public void executeOperation(Operation operation) {
+        currentTimestamp++;
         switch (operation.getOperationType()) {
             case BEGIN:
                 beginTransaction(operation, false, currentTimestamp);
@@ -78,10 +79,11 @@ public class TransactionManager {
                 sites.get(operation.getSiteId()).fail();
                 break;
             case RECOVER:
-                sites.get(operation.getSiteId()).recover();
+                Site site = sites.get(operation.getSiteId());
+                site.recover();
+                wakeupTransactionsWaitingForSite(site);
                 break;
         }
-        currentTimestamp++;
     }
 
     private void beginTransaction(Operation operation, boolean isReadOnly, Integer currentTimestamp) {
@@ -123,6 +125,9 @@ public class TransactionManager {
         } else {
             read(transaction, variable, operation);
         }
+    }
+
+    private void write(Operation operation) {
     }
 
     private void readForReadOnlyTransaction(Transaction transaction, Integer variable) {
@@ -186,7 +191,7 @@ public class TransactionManager {
 
     private void readVariable(Transaction transaction, Integer variable, Site site) {
         Integer value = site.readValue(transaction, variable);
-        FileUtils.log("Read value for x" + variable + " from site:" + site.getSiteId() + " =" + value);
+        FileUtils.log("Transaction: + " + transaction.getTransactionId() + "Read value for x" + variable + " from site:" + site.getSiteId() + " =" + value);
     }
 
     private void block(Transaction transaction, Site site, Integer variable, Operation operation) {
@@ -197,6 +202,7 @@ public class TransactionManager {
                 blockRead(transaction, site.getLockManager(), variable, operation);
             }
         }
+        //TODO: Add Deadlock detection
     }
 
     private void addWaitingSite(Transaction transaction, Site site) {
@@ -227,5 +233,22 @@ public class TransactionManager {
         List<Operation> operations = waitingOperations.getOrDefault(variable, new ArrayList<>());
         operations.add(operation);
         waitingOperations.put(variable, operations);
+    }
+
+    private void wakeupTransactionsWaitingForSite(Site site) {
+        waitingSites.forEach((transactionId, waitingSites) -> {
+            sites.remove(site);
+            if (waitingSites.isEmpty()) {
+                FileUtils.log("Transaction: " + transactionId + " woken up since site: " + site.getSiteId() + " is up!");
+                Transaction transaction = getTransactionOrThrowException(transactionId);
+                Operation currentOperation = transaction.getCurrentOperation();
+                if (OperationType.READ.equals(currentOperation.getOperationType())) {
+                    read(currentOperation);
+                } else if (OperationType.WRITE.equals(currentOperation.getOperationType())) {
+                    write(currentOperation);
+                }
+            }
+        });
+
     }
 }

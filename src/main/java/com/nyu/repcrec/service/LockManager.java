@@ -30,4 +30,9 @@ public class LockManager {
     public Optional<Transaction> waitsForWriteTransaction(Integer variable) {
         return Optional.ofNullable(writeLocks.get(variable));
     }
+
+    public void eraseLocks() {
+        readLocks.clear();
+        writeLocks.clear();
+    }
 }
