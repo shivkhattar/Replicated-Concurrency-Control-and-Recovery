@@ -90,13 +90,13 @@ public class TransactionManager {
         if (getTransaction(operation.getTransactionId()).isPresent()) {
             throw new RepCRecException("Transaction with id: " + operation.getTransactionId() + " already exists!");
         }
-        FileUtils.log("Begin" + (isReadOnly ? " RO " : " ") + "T" + operation.getTransactionId() + " at time: " + currentTimestamp);
+        FileUtils.log("Begin " + (isReadOnly ? "RO" : "") + " T" + operation.getTransactionId() + " at time: " + currentTimestamp);
         transactions.add(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, TransactionStatus.ACTIVE));
     }
 
     private void endTransaction(Integer transactionId) {
         Transaction transaction = getTransactionOrThrowException(transactionId);
-        if (TransactionStatus.ABORTED.equals(transaction.getTransactionStatus())) abort(transaction);
+        if (TransactionStatus.ABORT.equals(transaction.getTransactionStatus())) abort(transaction);
         else if (TransactionStatus.ACTIVE.equals(transaction.getTransactionStatus())) commit(transaction);
     }
 
@@ -224,6 +224,7 @@ public class TransactionManager {
 
     private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
+        transaction.setTransactionStatus(TransactionStatus.WAITING);
         List<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
         waitingList.add(transaction);
         waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
@@ -241,6 +242,7 @@ public class TransactionManager {
             if (waitingSites.isEmpty()) {
                 FileUtils.log("Transaction: " + transactionId + " woken up since site: " + site.getSiteId() + " is up!");
                 Transaction transaction = getTransactionOrThrowException(transactionId);
+                transaction.setTransactionStatus(TransactionStatus.ACTIVE);
                 Operation currentOperation = transaction.getCurrentOperation();
                 if (OperationType.READ.equals(currentOperation.getOperationType())) {
                     read(currentOperation);

@@ -29,12 +29,12 @@ public class Site {
         lockManager.getReadLocks().forEach((variable, transactions) ->
                 transactions.forEach(transaction -> {
                     dataManager.moveValueBackToCommittedValueAtTime(variable, transaction.getTimestamp());
-                    transaction.setTransactionStatus(TransactionStatus.ABORTED);
+                    transaction.setTransactionStatus(TransactionStatus.ABORT);
                 })
         );
         lockManager.getWriteLocks().forEach((variable, transaction) -> {
                     dataManager.moveValueBackToCommittedValueAtTime(variable, transaction.getTimestamp());
-                    transaction.setTransactionStatus(TransactionStatus.ABORTED);
+                    transaction.setTransactionStatus(TransactionStatus.ABORT);
                 }
         );
         lockManager.eraseLocks();
