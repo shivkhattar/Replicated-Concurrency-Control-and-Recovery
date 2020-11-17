@@ -46,7 +46,7 @@ public class FileUtils {
             operation = new Operation(RECOVER);
             operation.setSiteId(getIntegerFromString(components[1]));
         } else if (FAIL.getValue().equalsIgnoreCase(operationType) && components.length == 2) {
-            operation = new Operation(RECOVER);
+            operation = new Operation(FAIL);
             operation.setSiteId(getIntegerFromString(components[1]));
         } else if (READ.getValue().equalsIgnoreCase(operationType) && components.length == 3) {
             operation = new Operation(READ);

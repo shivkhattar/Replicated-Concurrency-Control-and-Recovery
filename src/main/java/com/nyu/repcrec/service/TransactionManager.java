@@ -90,7 +90,7 @@ public class TransactionManager {
         if (getTransaction(operation.getTransactionId()).isPresent()) {
             throw new RepCRecException("Transaction with id: " + operation.getTransactionId() + " already exists!");
         }
-        FileUtils.log("Begin" + (isReadOnly ? " Read Only " : " ") + "Transaction: " + operation.getTransactionId() + " at time: " + currentTimestamp);
+        FileUtils.log("Begin" + (isReadOnly ? " RO " : " ") + "T" + operation.getTransactionId() + " at time: " + currentTimestamp);
         transactions.add(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, TransactionStatus.ACTIVE));
     }
 
@@ -191,7 +191,7 @@ public class TransactionManager {
 
     private void readVariable(Transaction transaction, Integer variable, Site site) {
         Integer value = site.readValue(transaction, variable);
-        FileUtils.log("Transaction: + " + transaction.getTransactionId() + "Read value for x" + variable + " from site:" + site.getSiteId() + " =" + value);
+        FileUtils.log("Read from T" + transaction.getTransactionId() + " at site" + site.getSiteId() + " for variable x" + variable + ": " + value);
     }
 
     private void block(Transaction transaction, Site site, Integer variable, Operation operation) {

@@ -38,12 +38,12 @@ public class Site {
                 }
         );
         lockManager.eraseLocks();
-        FileUtils.log("Site: " + siteId + " failed! All locks released!");
+        FileUtils.log("Site" + siteId + " failed! All locks released!");
     }
 
     public void recover() {
         isUp = true;
-        FileUtils.log("Site: " + siteId + " recovered!");
+        FileUtils.log("Site" + siteId + " recovered!");
     }
 
     public Integer readValue(Transaction transaction, Integer variable) {
