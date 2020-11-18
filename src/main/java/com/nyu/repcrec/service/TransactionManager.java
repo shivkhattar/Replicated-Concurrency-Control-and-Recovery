@@ -277,12 +277,12 @@ public class TransactionManager {
     }
 
     private void wakeupTransactionsWaitingForSite(Site site) {
-        waitingSites.forEach((transactionId, waitingSites) -> {
+        waitingSites.forEach((transactionId, sites) -> {
             sites.remove(site);
-            if (waitingSites.isEmpty()) {
+            if (sites.isEmpty()) {
                 Transaction transaction = getTransactionOrThrowException(transactionId);
                 transaction.setTransactionStatus(TransactionStatus.ACTIVE);
-                FileUtils.log("Transaction: " + transactionId + " woken up since site: " + site.getSiteId() + " is up!");
+                FileUtils.log("T" + transactionId + " woken up since site" + site.getSiteId() + " is up!");
                 Operation currentOperation = transaction.getCurrentOperation();
                 if (OperationType.READ.equals(currentOperation.getOperationType())) {
                     read(currentOperation);
@@ -291,5 +291,6 @@ public class TransactionManager {
                 }
             }
         });
+        waitingSites.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 }
