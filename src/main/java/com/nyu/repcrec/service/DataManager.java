@@ -16,15 +16,31 @@ public class DataManager {
         data = new HashMap<>();
     }
 
-    public void insertData(Integer variable, Integer value) {
-        data.put(variable, new DataValue(value, value));
+    public void insertData(Integer variable, Integer timestamp, Integer value) {
+        data.put(variable, new DataValue(value, timestamp, value));
     }
 
-    public Integer readValue(Integer variable, boolean readCommittedValue) {
+    public Integer readValue(Integer variable, boolean readCommittedValue, Integer timestamp) {
         if (!data.containsKey(variable)) {
-            throw new RepCRecException("Invalid variable accessed!");
+            throw new RepCRecException("Invalid variable accessed in readValue!");
         }
         DataValue values = data.get(variable);
-        return readCommittedValue ? values.getLastCommittedValue() : values.getCurrentValue();
+        return readCommittedValue ? values.getLastCommittedValues().floorEntry(timestamp).getValue() : values.getCurrentValue();
+    }
+
+    public void writeValue(Integer variable, Integer writeValue) {
+        if (!data.containsKey(variable)) {
+            throw new RepCRecException("Invalid variable accessed in readValue!");
+        }
+        DataValue values = data.get(variable);
+        values.setCurrentValue(writeValue);
+    }
+
+    public void moveValueBackToCommittedValueAtTime(Integer variable, Integer timestamp) {
+        if (!data.containsKey(variable)) {
+            throw new RepCRecException("Invalid variable accessed in moveValueBackToCommittedValueAtTime!");
+        }
+        DataValue values = data.get(variable);
+        values.setCurrentValue(values.getLastCommittedValues().floorEntry(timestamp).getValue());
     }
 }
