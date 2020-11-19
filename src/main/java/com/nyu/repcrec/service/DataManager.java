@@ -28,8 +28,8 @@ public class DataManager {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in readValue!");
         }
-        DataValue values = data.get(variable);
-        return readCommittedValue ? values.getLastCommittedValues().floorEntry(timestamp).getValue() : values.getCurrentValue();
+        DataValue dataValue = data.get(variable);
+        return readCommittedValue ? dataValue.getLastCommittedValues().floorEntry(timestamp).getValue() : dataValue.getCurrentValue();
     }
 
     public void writeValue(Integer variable, Integer writeValue) {

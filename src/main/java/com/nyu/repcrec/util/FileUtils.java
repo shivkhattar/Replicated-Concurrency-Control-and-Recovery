@@ -19,10 +19,9 @@ public class FileUtils {
         if (StringUtils.isEmpty(inputFile)) {
             throw new IOException("Input path not provided");
         }
-        String COMMENT = "//";
 
         List<String> allLines = Files.readAllLines(Paths.get(inputFile));
-        return allLines.stream().filter(line -> !line.isEmpty() && !line.startsWith(COMMENT))
+        return allLines.stream().filter(line -> !line.isEmpty() && !line.startsWith(Constants.COMMENT))
                 .map(FileUtils::getOperation).collect(Collectors.toList());
 
     }
@@ -79,12 +78,21 @@ public class FileUtils {
         return Integer.valueOf(value);
     }
 
-    public static void createOutputFile(String outputPath) throws IOException {
-        if (StringUtils.isEmpty(outputPath)) {
+    public static void createOutputFile(String outputDirectoryPath, String outputFileName) throws IOException {
+        if (StringUtils.isEmpty(outputDirectoryPath)) {
             throw new IOException("Output path not provided");
         }
-        File file = new File(outputPath);
-        outputFile = outputPath;
+        if (StringUtils.isEmpty(outputFileName)) {
+            throw new IOException("Output file name not provided");
+        }
+        File directory = new File(outputDirectoryPath);
+
+        if(!directory.exists()){
+            directory.mkdirs();
+        }
+
+        File file = new File(outputDirectoryPath + "/" +  outputFileName);
+        outputFile = file.getPath();
         if (Files.exists(Paths.get(outputFile))) file.delete();
     }
 
