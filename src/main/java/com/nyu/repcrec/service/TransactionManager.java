@@ -13,10 +13,11 @@ import static com.nyu.repcrec.service.TransactionStatus.*;
 public class TransactionManager {
 
     private Integer currentTimestamp;
-    private List<Transaction> transactions;
+    //transactionId -> Transaction
+    private Map<Integer, Transaction> transactions;
     private List<Site> sites;
-    //transactionId -> Set<Transaction>
-    private Map<Integer, Set<Transaction>> waitingTransactions;
+    //transactionId -> List<Transaction>
+    private Map<Integer, List<Transaction>> waitingTransactions;
     //transactionId -> List<Site>
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
@@ -31,7 +32,7 @@ public class TransactionManager {
 
     public TransactionManager() {
         currentTimestamp = 0;
-        transactions = new ArrayList<>();
+        transactions = new HashMap<>();
         sites = new ArrayList<>();
         waitingTransactions = new HashMap<>();
         waitingSites = new HashMap<>();
@@ -68,13 +69,13 @@ public class TransactionManager {
         currentTimestamp++;
         switch (operation.getOperationType()) {
             case BEGIN:
-                beginTransaction(operation, false, currentTimestamp);
+                beginTransaction(operation, false);
                 break;
             case BEGINRO:
-                beginTransaction(operation, true, currentTimestamp);
+                beginTransaction(operation, true);
                 break;
             case END:
-                endTransaction(operation.getTransactionId(), currentTimestamp);
+                endTransaction(operation.getTransactionId());
                 break;
             case READ:
                 read(operation, true);
@@ -95,15 +96,15 @@ public class TransactionManager {
         }
     }
 
-    private void beginTransaction(Operation operation, boolean isReadOnly, Integer currentTimestamp) {
+    private void beginTransaction(Operation operation, boolean isReadOnly) {
         if (getTransaction(operation.getTransactionId()).isPresent()) {
             throw new RepCRecException("Transaction with id: " + operation.getTransactionId() + " already exists!");
         }
         FileUtils.log("Begin " + (isReadOnly ? "RO" : "") + " T" + operation.getTransactionId() + " at time: " + currentTimestamp);
-        transactions.add(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, ACTIVE));
+        transactions.put(operation.getTransactionId(), new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, ACTIVE));
     }
 
-    private void endTransaction(Integer transactionId, Integer currentTimestamp) {
+    private void endTransaction(Integer transactionId) {
         Transaction transaction = getTransactionOrThrowException(transactionId);
         Set<Integer> variablesHeldByTransaction = new HashSet<>();
         for (Integer siteId = MIN_SITE_ID; siteId <= MAX_SITE_ID; siteId++) {
@@ -111,7 +112,6 @@ public class TransactionManager {
             variablesHeldByTransaction.addAll(site.getLockManager().getAllVariablesHeldByTransaction(transaction));
             if (ACTIVE.equals(transaction.getTransactionStatus())) {
                 site.commitValues(transaction, currentTimestamp);
-                wakeupTransactionsWaitingForSite(site);
             } else {
                 site.moveCurrentValuesBackToCommitted(transaction, transaction.getTimestamp());
             }
@@ -119,7 +119,6 @@ public class TransactionManager {
         }
         removeFromWaitingTransactions(transaction);
         removeFromWaitingOperations(transaction);
-        wakeupTransactionsWaitingForVariables(variablesHeldByTransaction);
         if (ACTIVE.equals(transaction.getTransactionStatus())) {
             transaction.setTransactionStatus(COMMITTED);
             FileUtils.log("T" + transactionId + " committed");
@@ -127,6 +126,8 @@ public class TransactionManager {
             transaction.setTransactionStatus(ABORTED);
             FileUtils.log("T" + transactionId + " aborted");
         }
+        sites.stream().skip(MIN_SITE_ID).forEach(this::wakeupTransactionsWaitingForSite);
+        wakeupTransactionsWaitingForVariables(variablesHeldByTransaction);
     }
 
     private void removeFromWaitingTransactions(Transaction transaction) {
@@ -144,7 +145,7 @@ public class TransactionManager {
     }
 
     private Optional<Transaction> getTransaction(Integer transactionId) {
-        return transactions.stream().filter(transaction -> transaction.getTransactionId().equals(transactionId)).findFirst();
+        return Optional.ofNullable(transactions.get(transactionId));
     }
 
     private void read(Operation operation, boolean isNewRead) {
@@ -386,7 +387,7 @@ public class TransactionManager {
 
     private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer variable) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
-        Set<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new HashSet<>());
+        List<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
         waitingList.add(transaction);
         waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
         FileUtils.log("T" + transaction.getTransactionId() + " waiting for T" + waitsFor.getTransactionId()
