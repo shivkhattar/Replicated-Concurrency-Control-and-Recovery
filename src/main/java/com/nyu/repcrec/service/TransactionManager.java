@@ -5,15 +5,23 @@ import lombok.EqualsAndHashCode;
 
 import java.util.*;
 
+import static com.nyu.repcrec.service.OperationType.READ;
+import static com.nyu.repcrec.service.OperationType.WRITE;
+import static com.nyu.repcrec.service.TransactionStatus.*;
+
 @EqualsAndHashCode
 public class TransactionManager {
 
     private Integer currentTimestamp;
     private List<Transaction> transactions;
     private List<Site> sites;
-    private Map<Integer, List<Transaction>> waitingTransactions;
+    //transactionId -> Set<Transaction>
+    private Map<Integer, Set<Transaction>> waitingTransactions;
+    //transactionId -> List<Site>
     private Map<Integer, List<Site>> waitingSites;
-    private Map<Integer, List<Operation>> waitingOperations;
+    //variable -> List<Operation>
+    private Map<Integer, LinkedList<Operation>> waitingOperations;
+    //use for deadlock
     private List<Integer> visitedTransactions;
 
     private static final Integer MIN_SITE_ID = 1;
@@ -66,10 +74,10 @@ public class TransactionManager {
                 beginTransaction(operation, true, currentTimestamp);
                 break;
             case END:
-                endTransaction(operation.getTransactionId());
+                endTransaction(operation.getTransactionId(), currentTimestamp);
                 break;
             case READ:
-                read(operation);
+                read(operation, true);
                 break;
             case WRITE:
                 write(operation);
@@ -92,14 +100,43 @@ public class TransactionManager {
             throw new RepCRecException("Transaction with id: " + operation.getTransactionId() + " already exists!");
         }
         FileUtils.log("Begin " + (isReadOnly ? "RO" : "") + " T" + operation.getTransactionId() + " at time: " + currentTimestamp);
-        transactions.add(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, TransactionStatus.ACTIVE));
+        transactions.add(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, ACTIVE));
     }
 
-    private void endTransaction(Integer transactionId) {
+    private void endTransaction(Integer transactionId, Integer currentTimestamp) {
         Transaction transaction = getTransactionOrThrowException(transactionId);
+        Set<Integer> variablesHeldByTransaction = new HashSet<>();
+        for (Integer siteId = MIN_SITE_ID; siteId <= MAX_SITE_ID; siteId++) {
+            Site site = sites.get(siteId);
+            variablesHeldByTransaction.addAll(site.getLockManager().getAllVariablesHeldByTransaction(transaction));
+            if (ACTIVE.equals(transaction.getTransactionStatus())) {
+                site.commitValues(transaction, currentTimestamp);
+                wakeupTransactionsWaitingForSite(site);
+            } else {
+                site.moveCurrentValuesBackToCommitted(transaction, transaction.getTimestamp());
+            }
+            site.getLockManager().eraseLocksForTransaction(transaction);
+        }
+        removeFromWaitingTransactions(transaction);
+        removeFromWaitingOperations(transaction);
+        wakeupTransactionsWaitingForVariables(variablesHeldByTransaction);
+        if (ACTIVE.equals(transaction.getTransactionStatus())) {
+            transaction.setTransactionStatus(COMMITTED);
+            FileUtils.log("T" + transactionId + " committed");
+        } else {
+            transaction.setTransactionStatus(ABORTED);
+            FileUtils.log("T" + transactionId + " aborted");
+        }
+    }
 
-//        if (TransactionStatus.ABORT.equals(transaction.getTransactionStatus())) abort(transaction);
-//        else if (TransactionStatus.ACTIVE.equals(transaction.getTransactionStatus())) commit(transaction);
+    private void removeFromWaitingTransactions(Transaction transaction) {
+        waitingTransactions.forEach((transactionId, waiting) -> waiting.remove(transaction));
+        waitingTransactions.entrySet().removeIf(entry -> transaction.getTransactionId().equals(entry.getKey()) || entry.getValue().isEmpty());
+    }
+
+    private void removeFromWaitingOperations(Transaction transaction) {
+        waitingOperations.forEach((variable, operations) -> operations.removeIf(operation -> operation.getTransactionId().equals(transaction.getTransactionId())));
+        waitingOperations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 
     private Transaction getTransactionOrThrowException(Integer transactionId) {
@@ -110,46 +147,50 @@ public class TransactionManager {
         return transactions.stream().filter(transaction -> transaction.getTransactionId().equals(transactionId)).findFirst();
     }
 
-    private void read(Operation operation) {
+    private void read(Operation operation, boolean isNewRead) {
         Transaction transaction = getTransactionOrThrowException(operation.getTransactionId());
+        if (COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())) {
+            FileUtils.log("Finished T" + transaction.getTransactionId() + " trying to read. Ignoring.");
+            return;
+        }
         Integer variable = operation.getVariable();
         transaction.setCurrentOperation(operation);
         if (transaction.isReadOnly()) {
             readForReadOnlyTransaction(transaction, variable);
         } else {
-            read(transaction, variable, operation);
+            read(transaction, variable, operation, isNewRead);
         }
     }
 
     private void readForReadOnlyTransaction(Transaction transaction, Integer variable) {
         if (isOddVariable(variable)) {
-            readForReadOnlyTransactionForOddVariable(transaction, variable);
+            readOnlyTransactionOddVariable(transaction, variable);
         } else {
-            readForReadOnlyTransactionForEvenVariable(transaction, variable);
+            readOnlyTransactionEvenVariable(transaction, variable);
         }
     }
 
-    private void read(Transaction transaction, Integer variable, Operation operation) {
+    private void read(Transaction transaction, Integer variable, Operation operation, boolean isNewRead) {
         if (isOddVariable(variable)) {
-            readForOddVariable(transaction, variable, operation);
+            readOddVariable(transaction, variable, operation, isNewRead);
         } else {
-            readForEvenVariable(transaction, variable, operation);
+            readEvenVariable(transaction, variable, operation, isNewRead);
         }
     }
 
-    private void readForReadOnlyTransactionForOddVariable(Transaction transaction, Integer variable) {
+    private void readOnlyTransactionOddVariable(Transaction transaction, Integer variable) {
         Site site = sites.get(getSiteIdForOddVariable(variable));
-        if (site.isUp()) {
+        if (site.isReadAllowed(variable)) {
             readVariable(transaction, variable, site);
         } else {
             addWaitingSite(transaction, site);
         }
     }
 
-    private void readForReadOnlyTransactionForEvenVariable(Transaction transaction, Integer variable) {
+    private void readOnlyTransactionEvenVariable(Transaction transaction, Integer variable) {
         for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
             Site site = sites.get(i);
-            if (site.isUp()) {
+            if (site.isReadAllowed(variable)) {
                 readVariable(transaction, variable, site);
                 return;
             }
@@ -157,28 +198,69 @@ public class TransactionManager {
         sites.stream().skip(MIN_SITE_ID).forEach(site -> addWaitingSite(transaction, site));
     }
 
-    private void readForOddVariable(Transaction transaction, Integer variable, Operation operation) {
+    private boolean canRead(Transaction transaction, Integer variable) {
+        return isOddVariable(variable) ? canReadOddVariable(transaction, variable) : canReadEvenVariable(transaction, variable);
+    }
+
+    private boolean canReadOddVariable(Transaction transaction, Integer variable) {
         Site site = sites.get(getSiteIdForOddVariable(variable));
-        if (site.isUp() && site.getLockManager().canRead(transaction, variable)) {
-            //TODO: Add write starvation check
-            readVariable(transaction, variable, site);
+        return site.isReadAllowed(variable) && site.getLockManager().canRead(transaction, variable);
+    }
+
+    private boolean canReadEvenVariable(Transaction transaction, Integer variable) {
+        for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
+            Site site = sites.get(i);
+            if (site.isReadAllowed(variable) && site.getLockManager().canRead(transaction, variable)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void readOddVariable(Transaction transaction, Integer variable, Operation operation, boolean isNewRead) {
+        Site site = sites.get(getSiteIdForOddVariable(variable));
+        if (canReadOddVariable(transaction, variable)) {
+            if (checkWriteStarvation(transaction, variable, operation, isNewRead)) {
+                readVariable(transaction, variable, site);
+            }
         } else {
             block(transaction, site, variable, operation);
         }
     }
 
-    private void readForEvenVariable(Transaction transaction, Integer variable, Operation operation) {
+    private void readEvenVariable(Transaction transaction, Integer variable, Operation operation, boolean isNewRead) {
+        if (!canReadEvenVariable(transaction, variable)) {
+            sites.stream().skip(MIN_SITE_ID).forEach(site -> block(transaction, site, variable, operation));
+            return;
+        }
         for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
             Site site = sites.get(i);
-            if (site.isUp() && site.getLockManager().canRead(transaction, variable)) {
-                //TODO: Add write starvation check
-                readVariable(transaction, variable, site);
+            if (site.isReadAllowed(variable) && site.getLockManager().canRead(transaction, variable)) {
+                if (checkWriteStarvation(transaction, variable, operation, isNewRead)) {
+                    readVariable(transaction, variable, site);
+                }
                 return;
             }
         }
-        sites.stream().skip(MIN_SITE_ID).forEach(site -> block(transaction, site, variable, operation));
     }
 
+    private boolean checkWriteStarvation(Transaction transaction, Integer variable, Operation operation, boolean isNewRead) {
+        if (!isNewRead || !hasWriteWaiting(operation, variable)) return true;
+        addWaitsForWaitingWrite(transaction, operation, variable);
+        addWaitingOperation(variable, operation);
+        return false;
+    }
+
+    private boolean hasWriteWaiting(Operation operation, Integer variable) {
+        LinkedList<Operation> operationsInLine = waitingOperations.getOrDefault(variable, new LinkedList<>());
+        return operationsInLine.stream().anyMatch(waitingOperation -> !waitingOperation.equals(operation) && WRITE.equals(waitingOperation.getOperationType()));
+    }
+
+    private void addWaitsForWaitingWrite(Transaction transaction, Operation operation, Integer variable) {
+        LinkedList<Operation> operationsInLine = waitingOperations.getOrDefault(variable, new LinkedList<>());
+        Optional<Operation> waitsForOperation = operationsInLine.stream().filter(waitingOperation -> !waitingOperation.equals(operation) && WRITE.equals(waitingOperation.getOperationType())).findFirst();
+        waitsForOperation.ifPresent(waitsFor -> addToWaitingTransactions(getTransactionOrThrowException(waitsFor.getTransactionId()), transaction, null, variable));
+    }
 
     private void readVariable(Transaction transaction, Integer variable, Site site) {
         Integer value = site.readValue(transaction, variable);
@@ -187,32 +269,73 @@ public class TransactionManager {
 
     private void write(Operation operation) {
         Transaction transaction = getTransactionOrThrowException(operation.getTransactionId());
+        if (COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())) {
+            FileUtils.log("Finished T " + transaction.getTransactionId() + " trying to write. Ignoring.");
+            return;
+        }
         Integer variable = operation.getVariable();
         Integer writeValue = operation.getWriteValue();
 
         transaction.setCurrentOperation(operation);
-        if (isOddVariable(variable)) writeForOddVariable(transaction, variable, writeValue, operation);
-        else writeForEvenVariable(transaction, variable, writeValue, operation);
+        if (isOddVariable(variable)) writeOddVariable(transaction, variable, writeValue, operation);
+        else writeEvenVariable(transaction, variable, writeValue, operation);
     }
 
-    private void writeForOddVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation) {
+    private void writeOddVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation) {
         Site site = sites.get(getSiteIdForOddVariable(variable));
-        if (site.isUp() && site.getLockManager().canWrite(transaction, variable)) {
+        if (canWriteOddVariable(transaction, variable)) {
             writeVariable(transaction, variable, writeValue, site);
         } else {
             block(transaction, site, variable, operation);
         }
     }
 
-    private void writeForEvenVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation) {
-        for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
-            Site site = sites.get(i);
-            if (!site.isUp() || !site.getLockManager().canWrite(transaction, variable)) {
-                block(transaction, site, variable, operation);
-                return;
+    private void writeEvenVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation) {
+        if (canWriteEvenVariable(transaction, variable)) {
+            sites.stream().skip(MIN_SITE_ID).filter(Site::isUp).forEach(site -> writeVariable(transaction, variable, writeValue, site));
+        } else {
+            if (allSitesDown()) {
+                sites.stream().skip(MIN_SITE_ID).forEach(site -> addWaitingSite(transaction, site));
+            } else {
+                for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
+                    Site site = sites.get(i);
+                    if (site.isUp() && !site.getLockManager().canWrite(transaction, variable)) {
+                        block(transaction, site, variable, operation);
+                        return;
+                    }
+                }
             }
         }
-        sites.stream().skip(MIN_SITE_ID).forEach(site -> writeVariable(transaction, variable, writeValue, site));
+    }
+
+    private boolean canWrite(Transaction transaction, Integer variable) {
+        return isOddVariable(variable) ? canWriteOddVariable(transaction, variable) : canWriteEvenVariable(transaction, variable);
+    }
+
+    private boolean canWriteOddVariable(Transaction transaction, Integer variable) {
+        Site site = sites.get(getSiteIdForOddVariable(variable));
+        return site.isUp() && site.getLockManager().canWrite(transaction, variable);
+    }
+
+    private boolean canWriteEvenVariable(Transaction transaction, Integer variable) {
+        if (allSitesDown()) return false;
+        for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
+            Site site = sites.get(i);
+            if (site.isUp() && !site.getLockManager().canWrite(transaction, variable)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean allSitesDown() {
+        for (int i = MIN_SITE_ID; i <= MAX_SITE_ID; i++) {
+            Site site = sites.get(i);
+            if (site.isUp()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void writeVariable(Transaction transaction, Integer variable, Integer writeValue, Site site) {
@@ -221,13 +344,13 @@ public class TransactionManager {
     }
 
     private void block(Transaction transaction, Site site, Integer variable, Operation operation) {
-        if (!site.isUp()) {
+        if (!site.isUp() || (operation.getOperationType().equals(READ) && !site.isReadAllowed(variable))) {
             addWaitingSite(transaction, site);
             return;
         }
-        if (operation.getOperationType().equals(OperationType.READ)) {
+        if (operation.getOperationType().equals(READ)) {
             blockRead(transaction, site, variable, operation);
-        } else if (operation.getOperationType().equals(OperationType.WRITE)) {
+        } else if (operation.getOperationType().equals(WRITE)) {
             blockWrite(transaction, site, variable, operation);
         }
         //TODO: Add Deadlock detection
@@ -263,34 +386,64 @@ public class TransactionManager {
 
     private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer variable) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
-        transaction.setTransactionStatus(TransactionStatus.WAITING);
-        List<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
+        Set<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new HashSet<>());
         waitingList.add(transaction);
         waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
-        FileUtils.log("T" + transaction.getTransactionId() + " waiting for T" + waitsFor.getTransactionId() + " at site" + site.getSiteId() + " for x" + variable);
+        FileUtils.log("T" + transaction.getTransactionId() + " waiting for T" + waitsFor.getTransactionId()
+                + (Objects.isNull(site) ? "because of write waiting" : " at site" + site.getSiteId()) + " for x" + variable);
     }
 
     private void addWaitingOperation(Integer variable, Operation operation) {
-        List<Operation> operations = waitingOperations.getOrDefault(variable, new ArrayList<>());
+        LinkedList<Operation> operations = waitingOperations.getOrDefault(variable, new LinkedList<>());
         operations.add(operation);
         waitingOperations.put(variable, operations);
     }
 
     private void wakeupTransactionsWaitingForSite(Site site) {
         waitingSites.forEach((transactionId, sites) -> {
-            sites.remove(site);
-            if (sites.isEmpty()) {
-                Transaction transaction = getTransactionOrThrowException(transactionId);
-                transaction.setTransactionStatus(TransactionStatus.ACTIVE);
-                FileUtils.log("T" + transactionId + " woken up since site" + site.getSiteId() + " is up!");
-                Operation currentOperation = transaction.getCurrentOperation();
-                if (OperationType.READ.equals(currentOperation.getOperationType())) {
-                    read(currentOperation);
-                } else if (OperationType.WRITE.equals(currentOperation.getOperationType())) {
-                    write(currentOperation);
+            Transaction transaction = getTransactionOrThrowException(transactionId);
+            Operation currentOperation = transaction.getCurrentOperation();
+            if (READ.equals(currentOperation.getOperationType())) {
+                if (sites.contains(site) && site.isReadAllowed(currentOperation.getVariable())) {
+                    FileUtils.log("T" + transactionId + " woken up since site" + site.getSiteId() + " is up!");
+                    read(currentOperation, true);
+                    sites.clear();
                 }
-            }
+            } else if (WRITE.equals(currentOperation.getOperationType())) {
+                if (sites.contains(site)) {
+                    FileUtils.log("T" + transactionId + " woken up since site" + site.getSiteId() + " is up!");
+                    write(currentOperation);
+                    sites.clear();
+                }
+            } else throw new RepCRecException("T" + transactionId + " should not be waiting for sites!");
         });
         waitingSites.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+    }
+
+    private void wakeupTransactionsWaitingForVariables(Set<Integer> variables) {
+        variables.forEach(variable -> {
+            if (waitingOperations.containsKey(variable)) {
+                LinkedList<Operation> operations = waitingOperations.get(variable);
+                boolean canReadOrWrite = true;
+                while (!operations.isEmpty() && canReadOrWrite) {
+                    Operation operation = operations.getFirst();
+                    Transaction transaction = getTransactionOrThrowException(operation.getTransactionId());
+                    if (READ.equals(operation.getOperationType())) {
+                        if (canRead(transaction, variable)) {
+                            read(operation, false);
+                            operations.removeFirst();
+                        } else canReadOrWrite = false;
+                    } else if (WRITE.equals(operation.getOperationType())) {
+                        if (canWrite(transaction, variable)) {
+                            write(operation);
+                            operations.removeFirst();
+                        } else canReadOrWrite = false;
+                    } else {
+                        throw new RepCRecException(operation.getOperationType() + " for T" + operation.getTransactionId() + " should not be in the waiting operations!");
+                    }
+                }
+                waitingOperations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+            }
+        });
     }
 }

@@ -1,5 +1,6 @@
 package com.nyu.repcrec.service;
 
 public enum TransactionStatus {
-    ACTIVE, WAITING, ABORT, ABORTED, COMMITTED
+    ACTIVE, ABORT, ABORTED, COMMITTED
+
 }

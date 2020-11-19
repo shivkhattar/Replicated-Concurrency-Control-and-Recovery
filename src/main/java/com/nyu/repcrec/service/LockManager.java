@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Data
 @EqualsAndHashCode
@@ -45,8 +46,25 @@ public class LockManager {
         return readLocks.getOrDefault(variable, new ArrayList<>());
     }
 
-    public void eraseLocks() {
+    public void eraseAllLocks() {
         readLocks.clear();
         writeLocks.clear();
+    }
+
+    public void eraseLocksForTransaction(Transaction transaction) {
+        readLocks.forEach((variable, transactions) -> transactions.remove(transaction));
+        readLocks.entrySet().removeIf(readLock -> readLock.getValue().isEmpty());
+        writeLocks.entrySet().removeIf(writeLock -> writeLock.getValue().equals(transaction));
+    }
+
+    public Set<Integer> getAllVariablesHeldByTransaction(Transaction transaction) {
+        Set<Integer> variables = new HashSet<>();
+        variables.addAll(readLocks.entrySet().stream().filter(entry -> entry.getValue().contains(transaction)).map(Map.Entry::getKey).collect(Collectors.toSet()));
+        variables.addAll(getWriteVariablesHeldByTransaction(transaction));
+        return variables;
+    }
+
+    public Set<Integer> getWriteVariablesHeldByTransaction(Transaction transaction) {
+        return writeLocks.entrySet().stream().filter(entry -> entry.getValue().equals(transaction)).map(Map.Entry::getKey).collect(Collectors.toSet());
     }
 }
