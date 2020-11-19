@@ -117,7 +117,6 @@ public class TransactionManager {
         }
         removeFromWaitingTransactions(transaction);
         removeFromWaitingOperations(transaction);
-        removeFromTransactions(transaction);
         sites.stream().skip(MIN_SITE_ID).forEach(this::wakeupTransactionsWaitingForSite);
         wakeupTransactionsWaitingForVariables(variablesHeldByTransaction);
     }
@@ -130,10 +129,6 @@ public class TransactionManager {
     private void removeFromWaitingOperations(Transaction transaction) {
         waitingOperations.forEach((variable, operations) -> operations.removeIf(operation -> operation.getTransactionId().equals(transaction.getTransactionId())));
         waitingOperations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
-    }
-
-    private void removeFromTransactions(Transaction transaction) {
-        transactions.remove(transaction.getTransactionId());
     }
 
     private Transaction getTransactionOrThrowException(Integer transactionId) {
