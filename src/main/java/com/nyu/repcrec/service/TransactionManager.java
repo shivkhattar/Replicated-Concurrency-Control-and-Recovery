@@ -13,8 +13,7 @@ import static com.nyu.repcrec.service.TransactionStatus.*;
 public class TransactionManager {
 
     private Integer currentTimestamp;
-    //transactionId -> Transaction
-    private Map<Integer, Transaction> transactions;
+    private Transactions transactions;
     private List<Site> sites;
     //transactionId -> List<Transaction>
     private Map<Integer, List<Transaction>> waitingTransactions;
@@ -32,7 +31,7 @@ public class TransactionManager {
 
     public TransactionManager() {
         currentTimestamp = 0;
-        transactions = new HashMap<>();
+        transactions = new Transactions();
         sites = new ArrayList<>();
         waitingTransactions = new HashMap<>();
         waitingSites = new HashMap<>();
@@ -101,7 +100,7 @@ public class TransactionManager {
             throw new RepCRecException("Transaction with id: " + operation.getTransactionId() + " already exists!");
         }
         FileUtils.log("Begin " + (isReadOnly ? "RO " : "") + "T" + operation.getTransactionId() + " at time: " + currentTimestamp);
-        transactions.put(operation.getTransactionId(), new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, ACTIVE));
+        transactions.put(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, ACTIVE));
     }
 
     private void endTransaction(Integer transactionId) {
@@ -121,6 +120,7 @@ public class TransactionManager {
         }
         removeFromWaitingTransactions(transaction);
         removeFromWaitingOperations(transaction);
+        removeFromTransactions(transaction);
         sites.stream().skip(MIN_SITE_ID).forEach(this::wakeupTransactionsWaitingForSite);
         wakeupTransactionsWaitingForVariables(variablesHeldByTransaction);
     }
@@ -135,12 +135,16 @@ public class TransactionManager {
         waitingOperations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 
+    private void removeFromTransactions(Transaction transaction) {
+        transactions.remove(transaction.getTransactionId());
+    }
+
     private Transaction getTransactionOrThrowException(Integer transactionId) {
         return getTransaction(transactionId).orElseThrow(() -> new RepCRecException("Transaction with id:" + transactionId + " not found"));
     }
 
     private Optional<Transaction> getTransaction(Integer transactionId) {
-        return Optional.ofNullable(transactions.get(transactionId));
+        return transactions.get(transactionId);
     }
 
     private void read(Operation operation, boolean isNewRead) {
@@ -347,10 +351,12 @@ public class TransactionManager {
     }
 
     private void addWaitingSite(Transaction transaction, Site site) {
-        List<Site> waitingSitesForTransaction = waitingSites.getOrDefault(transaction.getTransactionId(), new ArrayList<>());
-        waitingSitesForTransaction.add(site);
-        waitingSites.put(transaction.getTransactionId(), waitingSitesForTransaction);
-        FileUtils.log("T" + transaction.getTransactionId() + " waits for Site" + site.getSiteId());
+        if (Objects.nonNull(site)) {
+            List<Site> waitingSitesForTransaction = waitingSites.getOrDefault(transaction.getTransactionId(), new ArrayList<>());
+            waitingSitesForTransaction.add(site);
+            waitingSites.put(transaction.getTransactionId(), waitingSitesForTransaction);
+            FileUtils.log("T" + transaction.getTransactionId() + " waits for Site" + site.getSiteId());
+        }
     }
 
     private void blockRead(Transaction transaction, Site site, Integer variable, Operation operation) {
@@ -377,16 +383,20 @@ public class TransactionManager {
     private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer variable) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
         List<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
-        waitingList.add(transaction);
-        waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
-        FileUtils.log("T" + transaction.getTransactionId() + " waits for T" + waitsFor.getTransactionId() + " for x" + variable
-                + (Objects.isNull(site) ? "because of write waiting" : " at site" + site.getSiteId()));
+        if (!waitingList.contains(transaction)) {
+            waitingList.add(transaction);
+            waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
+            FileUtils.log("T" + transaction.getTransactionId() + " waits for T" + waitsFor.getTransactionId() + " for x" + variable
+                    + (Objects.isNull(site) ? "because of write waiting" : " at site" + site.getSiteId()));
+        }
     }
 
     private void addWaitingOperation(Integer variable, Operation operation) {
-        LinkedList<Operation> operations = waitingOperations.getOrDefault(variable, new LinkedList<>());
-        operations.add(operation);
-        waitingOperations.put(variable, operations);
+        if (Objects.nonNull(operation)) {
+            LinkedList<Operation> operations = waitingOperations.getOrDefault(variable, new LinkedList<>());
+            operations.add(operation);
+            waitingOperations.put(variable, operations);
+        }
     }
 
     private void wakeupTransactionsWaitingForSite(Site site) {

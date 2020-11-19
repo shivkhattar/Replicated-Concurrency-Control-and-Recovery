@@ -1,8 +1,10 @@
 package com.nyu.repcrec.service;
 
 import com.nyu.repcrec.util.FileUtils;
+import lombok.AccessLevel;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.Setter;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -11,6 +13,7 @@ import java.util.Set;
 @EqualsAndHashCode
 public class Site {
 
+    @Setter(AccessLevel.PRIVATE)
     private Integer siteId;
     private boolean isUp;
     private LockManager lockManager;
