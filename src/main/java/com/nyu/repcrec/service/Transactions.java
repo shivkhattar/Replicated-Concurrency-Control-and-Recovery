@@ -22,8 +22,4 @@ public class Transactions {
     public Optional<Transaction> get(Integer transactionId) {
         return Optional.ofNullable(transactions.get(transactionId));
     }
-
-    public void remove(Integer transactionId) {
-        transactions.remove(transactionId);
-    }
 }
