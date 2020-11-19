@@ -21,6 +21,7 @@ public class DataManager {
 
     public void insertData(Integer variable, Integer timestamp, Integer value) {
         data.put(variable, new DataValue(value, timestamp, value));
+        availableForRead.put(variable, true);
     }
 
     public Integer readValue(Integer variable, boolean readCommittedValue, Integer timestamp) {
@@ -46,7 +47,8 @@ public class DataManager {
         DataValue values = data.get(variable);
         values.insertNewCommittedValue(currentTimestamp, values.getCurrentValue());
         availableForRead.put(variable, true);
-        FileUtils.log("Commit: x" + variable + "=" + values.getCurrentValue() + " at " + currentTimestamp + " at site" + siteId);
+        FileUtils.log(currentTimestamp + ": x" + variable + "=" + values.getCurrentValue() + " at site" + siteId);
+
     }
 
     public void moveValueBackToCommittedValueAtTime(Integer variable, Integer timestamp, Integer siteId) {
