@@ -58,7 +58,7 @@ public class LockManager {
     }
 
     public Set<Integer> getAllVariablesHeldByTransaction(Transaction transaction) {
-        Set<Integer> variables = new HashSet<>();
+        Set<Integer> variables = new LinkedHashSet<>();
         variables.addAll(readLocks.entrySet().stream().filter(entry -> entry.getValue().contains(transaction)).map(Map.Entry::getKey).collect(Collectors.toSet()));
         variables.addAll(getWriteVariablesHeldByTransaction(transaction));
         return variables;
