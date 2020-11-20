@@ -457,17 +457,19 @@ public class TransactionManager {
 
         FileUtils.log(Constants.DUMP);
 
-        for(Site site : sites) {
+        sites.stream().skip(MIN_SITE_ID).forEach( site ->
+        {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
             StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
-            for (Integer variableId : dataTreeMap.keySet()){
+            dataTreeMap.keySet().forEach(variableId -> {
                 DataValue dataValue = dataTreeMap.get(variableId);
                 sb.append(String.format(" x%d : %d,", variableId, dataValue.getCurrentValue()));
-            }
+            });
             // Removing last comma
             sb.setLength(sb.length()-1);
             FileUtils.log(sb.toString());
-        }
+        });
+
         FileUtils.log(Constants.ASTERISK_LINE);
     }
 }
