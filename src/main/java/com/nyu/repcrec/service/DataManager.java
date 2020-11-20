@@ -6,16 +6,17 @@ import lombok.EqualsAndHashCode;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 @Data
 @EqualsAndHashCode
 public class DataManager {
 
-    private Map<Integer, DataValue> data;
+    private TreeMap<Integer, DataValue> data;
     private Map<Integer, Boolean> availableForRead;
 
     public DataManager() {
-        data = new HashMap<>();
+        data = new TreeMap<>();
         availableForRead = new HashMap<>();
     }
 

@@ -1,5 +1,6 @@
 package com.nyu.repcrec.service;
 
+import com.nyu.repcrec.util.Constants;
 import com.nyu.repcrec.util.FileUtils;
 import lombok.EqualsAndHashCode;
 
@@ -40,8 +41,10 @@ public class TransactionManager {
 
         //create new variables and place them at the correct site
         for (int variable = MIN_VARIABLE; variable <= MAX_VARIABLE; variable++) {
-            if (isOddVariable(variable)) addVariableAtSiteId(variable, getSiteIdForOddVariable(variable));
-            else addVariableAtAllSites(variable);
+            if (isOddVariable(variable))
+                addVariableAtSiteId(variable, getSiteIdForOddVariable(variable));
+            else
+                addVariableAtAllSites(variable);
         }
     }
 
@@ -80,6 +83,7 @@ public class TransactionManager {
                 write(operation);
                 break;
             case DUMP:
+                dump();
                 break;
             case FAIL:
                 sites.get(operation.getSiteId()).fail();
@@ -447,5 +451,23 @@ public class TransactionManager {
                 waitingOperations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
             }
         });
+    }
+
+    private void dump() {
+        sites.sort(Comparator.comparingInt(Site::getSiteId));
+        FileUtils.log(Constants.DUMP);
+        
+        for(Site site : sites) {
+            TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
+            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
+            for (Integer variableId : dataTreeMap.keySet()){
+                DataValue dataValue = dataTreeMap.get(variableId);
+                sb.append(String.format(" x%d : %d,", variableId, dataValue.getCurrentValue()));
+            }
+            // Removing last comma
+            sb.setLength(sb.length()-1);
+            FileUtils.log(sb.toString());
+        }
+        FileUtils.log(Constants.ASTERISK_LINE);
     }
 }
