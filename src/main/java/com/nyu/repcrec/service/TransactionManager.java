@@ -454,9 +454,9 @@ public class TransactionManager {
     }
 
     private void dump() {
-        sites.sort(Comparator.comparingInt(Site::getSiteId));
+
         FileUtils.log(Constants.DUMP);
-        
+
         for(Site site : sites) {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
             StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
