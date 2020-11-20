@@ -347,7 +347,7 @@ public class TransactionManager {
 
         DeadlockManager deadlockDetection = new DeadlockManager(waitsForGraph);
 
-        Optional<Transaction> abortTransaction = deadlockDetection.detectDeadlock(transaction);
+        Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction);
 
         abortTransaction.ifPresent(value -> {
             value.setTransactionStatus(ABORT);

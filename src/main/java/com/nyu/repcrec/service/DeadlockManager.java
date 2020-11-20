@@ -11,7 +11,7 @@ public class DeadlockManager {
 
     private Transaction youngestTransaction = null;
 
-    public Optional<Transaction> detectDeadlock(Transaction transaction){
+    public Optional<Transaction> findYoungestDeadlockedTransaction(Transaction transaction){
         if(transaction == null){
             throw new RepCRecException("Transaction cannot be null for a detecting deadlock");
         }
