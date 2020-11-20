@@ -12,6 +12,9 @@ public class DeadlockManager {
     private Transaction youngestTransaction = null;
 
     public Optional<Transaction> detectDeadlock(Transaction transaction){
+        if(transaction == null){
+            throw new RepCRecException("Transaction cannot be null for a detecting deadlock");
+        }
 
         Set<Integer> visited = new HashSet<>();
 
@@ -28,11 +31,11 @@ public class DeadlockManager {
 
         visited.add(currentTransaction.getTransactionId());
 
-        List<Transaction> list = waitsForGraph.getOrDefault(currentTransaction.getTransactionId(), new LinkedList<>());
+        List<Transaction> connectedTransactions = waitsForGraph.getOrDefault(currentTransaction.getTransactionId(), new LinkedList<>());
 
-        for(Transaction t : list){
-            if(!visited.contains(t.getTransactionId())){
-                if(detectCycle(visited, t)) {
+        for(Transaction nextTransaction : connectedTransactions){
+            if(!visited.contains(nextTransaction.getTransactionId())){
+                if(detectCycle(visited, nextTransaction)) {
                     return true;
                 }
             } else {
