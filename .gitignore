@@ -9,3 +9,12 @@ out/
 # resource directories
 output/
 
+# vagrant
+.vagrant/
+
+# log
+*.log
+
+# reporzip
+*.rpz
+.reprozip-trace/
