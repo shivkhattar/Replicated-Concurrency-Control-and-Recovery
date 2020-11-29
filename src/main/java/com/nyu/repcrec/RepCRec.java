@@ -5,18 +5,21 @@ import com.nyu.repcrec.service.TransactionManager;
 import com.nyu.repcrec.util.Constants;
 import com.nyu.repcrec.util.FileUtils;
 
+import java.io.File;
 import java.util.List;
 
 public class RepCRec {
 
     public static void main(String[] args) {
         try {
-            for(String inputFileNumber : args){
-                FileUtils.log(String.format(Constants.INPUT_FILE, inputFileNumber));
-                executeInputFile(inputFileNumber);
-                FileUtils.log(Constants.ASTERISK_LINE);
+            // Defaults to Input Resource directory if Directory not provided
+            if(args.length == 0){
+                args = new String[]{Constants.RESOURCE_DIR_PATH + "/input"};
             }
-
+            final File folder = new File(args[0]);
+            for (final File fileEntry : folder.listFiles()) {
+                executeInputFile(fileEntry);
+            }
         } catch (Exception exception) {
             FileUtils.log(exception.getMessage());
             System.err.println("Exception occurred in execution. Exception: ");
@@ -25,11 +28,12 @@ public class RepCRec {
 
     }
 
-    public static void executeInputFile(String fileNumber) throws Exception{
-        FileUtils.createOutputFile(Constants.RESOURCE_DIR_PATH + "/output", "output-" + fileNumber);
-        List<Operation> operations = FileUtils.parseFile(Constants.RESOURCE_DIR_PATH + "/input" + "/input-" + fileNumber);
+    public static void executeInputFile(File fileEntry) throws Exception{
+        FileUtils.createOutputFile(Constants.RESOURCE_DIR_PATH + "/output", fileEntry.getName() + "-output");
+        FileUtils.log(String.format(Constants.INPUT_FILE, fileEntry.getName()));
+        List<Operation> operations = FileUtils.parseFile(fileEntry.getPath());
         executeOperations(operations);
-
+        FileUtils.log(Constants.ASTERISK_LINE);
     }
 
     private static void executeOperations(List<Operation> operations) {
