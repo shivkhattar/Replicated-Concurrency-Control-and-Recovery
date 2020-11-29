@@ -12,7 +12,7 @@ public class RepCRec {
 
     public static void main(String[] args) {
         try {
-            // Defaults to Input Resource directory if Directory not provided
+            // Defaults to input resource directory if directory not provided
             if(args.length == 0){
                 args = new String[]{Constants.RESOURCE_DIR_PATH + "/input"};
             }
