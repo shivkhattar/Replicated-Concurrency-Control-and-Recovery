@@ -6,6 +6,7 @@ import com.nyu.repcrec.util.Constants;
 import com.nyu.repcrec.util.FileUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 public class RepCRec {
@@ -14,11 +15,16 @@ public class RepCRec {
         try {
             // Defaults to input resource directory if directory not provided
             if(args.length == 0){
-                args = new String[]{Constants.RESOURCE_DIR_PATH + "/input"};
+                args = new String[]{Constants.RESOURCE_DIR_PATH + "/input/input-21"};
             }
             final File folder = new File(args[0]);
-            for (final File fileEntry : folder.listFiles()) {
-                executeInputFile(fileEntry);
+
+            if(!folder.isDirectory()){
+                executeInputFile(folder);
+            } else {
+                for (final File fileEntry : folder.listFiles()) {
+                    executeInputFile(fileEntry);
+                }
             }
         } catch (Exception exception) {
             FileUtils.log(exception.getMessage());
@@ -28,7 +34,7 @@ public class RepCRec {
 
     }
 
-    public static void executeInputFile(File fileEntry) throws Exception{
+    public static void executeInputFile(File fileEntry) throws IOException {
         FileUtils.createOutputFile(Constants.RESOURCE_DIR_PATH + "/output", fileEntry.getName() + "-output");
         FileUtils.log(String.format(Constants.INPUT_FILE, fileEntry.getName()));
         List<Operation> operations = FileUtils.parseFile(fileEntry.getPath());
