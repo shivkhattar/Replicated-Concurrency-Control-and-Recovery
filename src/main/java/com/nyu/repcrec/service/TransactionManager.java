@@ -61,7 +61,7 @@ public class TransactionManager {
     }
 
     private Integer getSiteIdForOddVariable(Integer variable) {
-        return (variable + 1) % 10;
+        return 1 + (variable % 10);
     }
 
     public void executeOperation(Operation operation) {
