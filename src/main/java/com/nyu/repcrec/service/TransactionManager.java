@@ -1,5 +1,6 @@
 package com.nyu.repcrec.service;
 
+import com.nyu.repcrec.util.Constants;
 import com.nyu.repcrec.util.FileUtils;
 import lombok.EqualsAndHashCode;
 
@@ -16,13 +17,11 @@ public class TransactionManager {
     private Transactions transactions;
     private List<Site> sites;
     //transactionId -> List<Transaction>
-    private Map<Integer,  List<Transaction>> waitingTransactions;
+    private Map<Integer, List<Transaction>> waitsForGraph;
     //transactionId -> List<Site>
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
     private Map<Integer, LinkedList<Operation>> waitingOperations;
-    //use for deadlock
-    private List<Integer> visitedTransactions;
 
     private static final Integer MIN_SITE_ID = 1;
     private static final Integer MAX_SITE_ID = 10;
@@ -33,18 +32,19 @@ public class TransactionManager {
         currentTimestamp = 0;
         transactions = new Transactions();
         sites = new ArrayList<>();
-        waitingTransactions = new HashMap<>();
+        waitsForGraph = new HashMap<>();
         waitingSites = new HashMap<>();
         waitingOperations = new HashMap<>();
-        visitedTransactions = new ArrayList<>();
 
         //Create 11 new sites, first one being the dummy site
         for (int i = 0; i <= MAX_SITE_ID; i++) sites.add(new Site(i));
 
         //create new variables and place them at the correct site
         for (int variable = MIN_VARIABLE; variable <= MAX_VARIABLE; variable++) {
-            if (isOddVariable(variable)) addVariableAtSiteId(variable, getSiteIdForOddVariable(variable));
-            else addVariableAtAllSites(variable);
+            if (isOddVariable(variable))
+                addVariableAtSiteId(variable, getSiteIdForOddVariable(variable));
+            else
+                addVariableAtAllSites(variable);
         }
     }
 
@@ -61,7 +61,7 @@ public class TransactionManager {
     }
 
     private Integer getSiteIdForOddVariable(Integer variable) {
-        return (variable + 1) % 10;
+        return 1 + (variable % 10);
     }
 
     public void executeOperation(Operation operation) {
@@ -83,6 +83,7 @@ public class TransactionManager {
                 write(operation);
                 break;
             case DUMP:
+                dump();
                 break;
             case FAIL:
                 sites.get(operation.getSiteId()).fail();
@@ -125,8 +126,8 @@ public class TransactionManager {
     }
 
     private void removeFromWaitingTransactions(Transaction transaction) {
-        waitingTransactions.forEach((transactionId, waiting) -> waiting.remove(transaction));
-        waitingTransactions.entrySet().removeIf(entry -> transaction.getTransactionId().equals(entry.getKey()) || entry.getValue().isEmpty());
+        waitsForGraph.forEach((transactionId, waiting) -> waiting.remove(transaction));
+        waitsForGraph.entrySet().removeIf(entry -> transaction.getTransactionId().equals(entry.getKey()) || entry.getValue().isEmpty());
     }
 
     private void removeFromWaitingOperations(Transaction transaction) {
@@ -343,6 +344,16 @@ public class TransactionManager {
             blockWrite(transaction, site, variable, operation);
         }
         //TODO: Add Deadlock detection
+
+        DeadlockManager deadlockDetection = new DeadlockManager(waitsForGraph);
+
+        Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction);
+
+        abortTransaction.ifPresent(value -> {
+            value.setTransactionStatus(ABORT);
+            endTransaction(value.getTransactionId());
+        });
+
     }
 
     private void addWaitingSite(Transaction transaction, Site site) {
@@ -377,10 +388,10 @@ public class TransactionManager {
 
     private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer variable) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
-        List<Transaction> waitingList = waitingTransactions.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
+        List<Transaction> waitingList = waitsForGraph.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
         if (!waitingList.contains(transaction)) {
             waitingList.add(transaction);
-            waitingTransactions.put(waitsFor.getTransactionId(), waitingList);
+            waitsForGraph.put(waitsFor.getTransactionId(), waitingList);
             FileUtils.log("T" + transaction.getTransactionId() + " waits for T" + waitsFor.getTransactionId() + " for x" + variable
                     + (Objects.isNull(site) ? "because of write waiting" : " at site" + site.getSiteId()));
         }
@@ -440,5 +451,29 @@ public class TransactionManager {
                 waitingOperations.entrySet().removeIf(entry -> entry.getValue().isEmpty());
             }
         });
+    }
+
+    private void dump() {
+
+        FileUtils.log(Constants.DUMP);
+
+        sites.stream().skip(MIN_SITE_ID).forEach( site ->
+        {
+            TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
+            StringBuilder sb = new StringBuilder(String.format("// site %d-", site.getSiteId()));
+            dataTreeMap.keySet().forEach(variableId -> {
+            DataValue dataValue = dataTreeMap.get(variableId);
+            sb.append(String.format(" x%d:%d", variableId, dataValue.getCurrentValue()));
+            //            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
+//            dataTreeMap.keySet().forEach(variableId -> {
+//                DataValue dataValue = dataTreeMap.get(variableId);
+//                sb.append(String.format(" x%d : %d,", variableId, dataValue.getCurrentValue()));
+            });
+            // Removing last comma
+//            sb.setLength(sb.length()-1);
+            FileUtils.log(sb.toString());
+        });
+
+        FileUtils.log(Constants.ASTERISK_LINE);
     }
 }

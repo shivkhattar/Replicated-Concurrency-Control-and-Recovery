@@ -6,16 +6,17 @@ import lombok.EqualsAndHashCode;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 @Data
 @EqualsAndHashCode
 public class DataManager {
 
-    private Map<Integer, DataValue> data;
+    private TreeMap<Integer, DataValue> data;
     private Map<Integer, Boolean> availableForRead;
 
     public DataManager() {
-        data = new HashMap<>();
+        data = new TreeMap<>();
         availableForRead = new HashMap<>();
     }
 
@@ -28,8 +29,8 @@ public class DataManager {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in readValue!");
         }
-        DataValue values = data.get(variable);
-        return readCommittedValue ? values.getLastCommittedValues().floorEntry(timestamp).getValue() : values.getCurrentValue();
+        DataValue dataValue = data.get(variable);
+        return readCommittedValue ? dataValue.getLastCommittedValues().floorEntry(timestamp).getValue() : dataValue.getCurrentValue();
     }
 
     public void writeValue(Integer variable, Integer writeValue) {

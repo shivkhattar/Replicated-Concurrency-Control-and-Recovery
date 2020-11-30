@@ -1,2 +1,20 @@
+# idea files
 .idea/
+*.iml
+
+# output folders
 target/
+out/
+
+# resource directories
+output/
+
+# vagrant
+.vagrant/
+
+# log
+*.log
+
+# reporzip
+*.rpz
+.reprozip-trace/
