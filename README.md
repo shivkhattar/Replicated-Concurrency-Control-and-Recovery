@@ -1,5 +1,7 @@
 # Replicated-Concurrency-Control-and-Recovery
 
+A distributed database, complete with multiversion concurrency control, deadlock detection, replication, and failure recovery.
+
 ### Requirements
 - `java 8`
 - `maven`
