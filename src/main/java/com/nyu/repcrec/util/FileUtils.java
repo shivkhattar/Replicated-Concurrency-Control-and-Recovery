@@ -23,7 +23,6 @@ public class FileUtils {
         List<String> allLines = Files.readAllLines(Paths.get(inputFile));
         return allLines.stream().filter(line -> !line.isEmpty() && !line.startsWith(Constants.COMMENT))
                 .map(FileUtils::getOperation).collect(Collectors.toList());
-
     }
 
     private static Operation getOperation(String operationString) {
@@ -87,11 +86,11 @@ public class FileUtils {
         }
         File directory = new File(outputDirectoryPath);
 
-        if(!directory.exists()){
+        if (!directory.exists()) {
             directory.mkdirs();
         }
 
-        File file = new File(outputDirectoryPath + "/" +  outputFileName);
+        File file = new File(outputDirectoryPath + "/" + outputFileName);
         outputFile = file.getPath();
         if (Files.exists(Paths.get(outputFile))) file.delete();
     }
