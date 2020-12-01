@@ -14,13 +14,13 @@ public class RepCRec {
 
     public static void main(String[] args) {
         try {
-            // Defaults to input resource directory if directory not provided
-            if(args.length == 0){
+            //Defaults to input resource directory if directory not provided
+            if (args.length == 0) {
                 args = new String[]{Constants.RESOURCE_DIR_PATH + "/input"};
             }
             final File folder = new File(args[0]);
 
-            if(!folder.isDirectory()){
+            if (!folder.isDirectory()) {
                 executeInputFile(folder);
             } else {
                 for (final File fileEntry : Objects.requireNonNull(folder.listFiles())) {
@@ -32,7 +32,6 @@ public class RepCRec {
             System.err.println("Exception occurred in execution. Exception: ");
             exception.printStackTrace();
         }
-
     }
 
     public static void executeInputFile(File fileEntry) throws IOException {
