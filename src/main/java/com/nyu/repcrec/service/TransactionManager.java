@@ -22,6 +22,7 @@ public class TransactionManager {
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
     private Map<Integer, LinkedList<Operation>> waitingOperations;
+    private DeadlockManager deadlockManager;
 
     private static final Integer MIN_SITE_ID = 1;
     private static final Integer MAX_SITE_ID = 10;
@@ -35,6 +36,7 @@ public class TransactionManager {
         waitsForGraph = new HashMap<>();
         waitingSites = new HashMap<>();
         waitingOperations = new HashMap<>();
+        deadlockManager = DeadlockManager.getInstance();
 
         //Create 11 new sites, first one being the dummy site
         for (int i = 0; i <= MAX_SITE_ID; i++) sites.add(new Site(i));
@@ -352,8 +354,7 @@ public class TransactionManager {
     }
 
     private void detectDeadlock(Transaction transaction) {
-        DeadlockManager deadlockDetection = new DeadlockManager(waitsForGraph);
-        Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction);
+        Optional<Transaction> abortTransaction = deadlockManager.findYoungestDeadlockedTransaction(transaction, waitsForGraph);
         abortTransaction.ifPresent(value -> {
             value.setTransactionStatus(ABORT);
             endTransaction(value.getTransactionId());
@@ -466,17 +467,13 @@ public class TransactionManager {
         sites.stream().skip(MIN_SITE_ID).forEach(site ->
         {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
-            StringBuilder sb = new StringBuilder(String.format("// site %d-", site.getSiteId()));
+            StringBuilder sb = new StringBuilder(String.format("site %d - ", site.getSiteId()));
             dataTreeMap.keySet().forEach(variableId -> {
                 DataValue dataValue = dataTreeMap.get(variableId);
-                sb.append(String.format(" x%d:%d", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
-                //            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
-//            dataTreeMap.keySet().forEach(variableId -> {
-//                DataValue dataValue = dataTreeMap.get(variableId);
-//                sb.append(String.format(" x%d : %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
+                sb.append(String.format(" x%d: %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
             });
             // Removing last comma
-//            sb.setLength(sb.length()-1);
+            sb.setLength(sb.length()-1);
             FileUtils.log(sb.toString());
         });
 
