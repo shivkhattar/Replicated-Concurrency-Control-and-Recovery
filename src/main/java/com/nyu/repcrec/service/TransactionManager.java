@@ -466,7 +466,7 @@ public class TransactionManager {
         sites.stream().skip(MIN_SITE_ID).forEach(site ->
         {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
-            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
+            StringBuilder sb = new StringBuilder(String.format("site %d - ", site.getSiteId()));
             dataTreeMap.keySet().forEach(variableId -> {
                 DataValue dataValue = dataTreeMap.get(variableId);
                 sb.append(String.format(" x%d: %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
