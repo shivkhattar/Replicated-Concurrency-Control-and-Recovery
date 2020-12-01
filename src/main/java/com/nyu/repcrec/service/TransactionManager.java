@@ -22,7 +22,7 @@ public class TransactionManager {
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
     private Map<Integer, LinkedList<Operation>> waitingOperations;
-    private DeadlockManager deadlockManager;
+    private Transaction youngestTransaction;
 
     private static final Integer MIN_SITE_ID = 1;
     private static final Integer MAX_SITE_ID = 10;
@@ -36,7 +36,6 @@ public class TransactionManager {
         waitsForGraph = new HashMap<>();
         waitingSites = new HashMap<>();
         waitingOperations = new HashMap<>();
-        deadlockManager = DeadlockManager.getInstance();
 
         //Create 11 new sites, first one being the dummy site
         for (int i = 0; i <= MAX_SITE_ID; i++) sites.add(new Site(i));
@@ -109,6 +108,12 @@ public class TransactionManager {
     protected void endTransaction(Integer transactionId) {
         Transaction transaction = getTransactionOrThrowException(transactionId);
         Set<Integer> variablesHeldByTransaction = new LinkedHashSet<>();
+
+        if (COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())) {
+            FileUtils.log(String.format("T%d is already %s", transactionId, transaction.getTransactionStatus().name().toLowerCase()));
+            return;
+        }
+
         transaction.setTransactionStatus(ACTIVE.equals(transaction.getTransactionStatus()) ? COMMITTED : ABORTED);
         FileUtils.log("T" + transactionId + " " + transaction.getTransactionStatus().name().toLowerCase());
         for (Integer siteId = MIN_SITE_ID; siteId <= MAX_SITE_ID; siteId++) {
@@ -246,7 +251,7 @@ public class TransactionManager {
         if (!isNewReadOrWrite || !hasWriteWaiting(operation, variable)) return true;
         addWaitsForWaitingWrite(transaction, operation, variable);
         addWaitingOperation(variable, operation);
-        detectDeadlock(transaction);
+        detectDeadlock();
         return false;
     }
 
@@ -350,15 +355,16 @@ public class TransactionManager {
         } else if (operation.getOperationType().equals(WRITE)) {
             blockWrite(transaction, site, variable, operation);
         }
-        detectDeadlock(transaction);
+        detectDeadlock();
     }
 
-    protected void detectDeadlock(Transaction transaction) {
-        Optional<Transaction> abortTransaction = deadlockManager.findYoungestDeadlockedTransaction(transaction, waitsForGraph);
-        abortTransaction.ifPresent(value -> {
-            value.setTransactionStatus(ABORT);
-            endTransaction(value.getTransactionId());
-        });
+    private void detectDeadlock() {
+        Optional<Transaction> abortTransaction = findYoungestDeadlockedTransaction();
+        while (abortTransaction.isPresent()) {
+            abortTransaction.get().setTransactionStatus(ABORT);
+            endTransaction(abortTransaction.get().getTransactionId());
+            abortTransaction = findYoungestDeadlockedTransaction();
+        }
     }
 
 
@@ -465,14 +471,52 @@ public class TransactionManager {
         sites.stream().skip(MIN_SITE_ID).forEach(site ->
         {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
-            StringBuilder sb = new StringBuilder(String.format("site %d - ", site.getSiteId()));
+            StringBuilder sb = new StringBuilder(String.format("site %d -", site.getSiteId()));
             dataTreeMap.keySet().forEach(variableId -> {
                 DataValue dataValue = dataTreeMap.get(variableId);
                 sb.append(String.format(" x%d: %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
             });
+            // Removing last comma
             sb.setLength(sb.length() - 1);
             FileUtils.log(sb.toString());
         });
         FileUtils.log(Constants.ASTERISK_LINE);
+    }
+
+    private Optional<Transaction> findYoungestDeadlockedTransaction() {
+        youngestTransaction = null;
+        for (Integer currentTransactionId : waitsForGraph.keySet()) {
+            Transaction currentTransaction = getTransactionOrThrowException(currentTransactionId);
+            Set<Integer> visited = new HashSet<>();
+
+            if (detectCycle(visited, currentTransaction, currentTransaction)) {
+                if (youngestTransaction != null && currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()) {
+                    youngestTransaction = currentTransaction;
+                } else {
+                    youngestTransaction = currentTransaction;
+                }
+            }
+        }
+
+        return Optional.ofNullable(youngestTransaction);
+    }
+
+    private boolean detectCycle(Set<Integer> visited, Transaction currentTransaction, Transaction startingTransaction) {
+
+        visited.add(currentTransaction.getTransactionId());
+
+        List<Transaction> connectedTransactions = waitsForGraph.getOrDefault(currentTransaction.getTransactionId(), new LinkedList<>());
+
+        for (Transaction nextTransaction : connectedTransactions) {
+            if (nextTransaction.equals(startingTransaction))
+                return true;
+            if (!visited.contains(nextTransaction.getTransactionId())) {
+                if (detectCycle(visited, nextTransaction, startingTransaction)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 }
