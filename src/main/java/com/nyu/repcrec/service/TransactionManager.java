@@ -98,7 +98,7 @@ public class TransactionManager {
         }
     }
 
-    private void beginTransaction(Operation operation, boolean isReadOnly) {
+    protected void beginTransaction(Operation operation, boolean isReadOnly) {
         if (getTransaction(operation.getTransactionId()).isPresent()) {
             throw new RepCRecException("Transaction with id: " + operation.getTransactionId() + " already exists!");
         }
@@ -106,7 +106,7 @@ public class TransactionManager {
         transactions.put(new Transaction(operation.getTransactionId(), currentTimestamp, operation, isReadOnly, ACTIVE));
     }
 
-    private void endTransaction(Integer transactionId) {
+    protected void endTransaction(Integer transactionId) {
         Transaction transaction = getTransactionOrThrowException(transactionId);
         Set<Integer> variablesHeldByTransaction = new LinkedHashSet<>();
         transaction.setTransactionStatus(ACTIVE.equals(transaction.getTransactionStatus()) ? COMMITTED : ABORTED);
@@ -141,11 +141,11 @@ public class TransactionManager {
         return getTransaction(transactionId).orElseThrow(() -> new RepCRecException("Transaction with id:" + transactionId + " not found"));
     }
 
-    private Optional<Transaction> getTransaction(Integer transactionId) {
+    protected Optional<Transaction> getTransaction(Integer transactionId) {
         return transactions.get(transactionId);
     }
 
-    private void read(Operation operation, boolean isNewRead) {
+    protected void read(Operation operation, boolean isNewRead) {
         Transaction transaction = getTransactionOrThrowException(operation.getTransactionId());
         if (COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())) {
             FileUtils.log("Finished T" + transaction.getTransactionId() + " trying to read. Ignoring.");
@@ -160,7 +160,7 @@ public class TransactionManager {
         }
     }
 
-    private void readForReadOnlyTransaction(Transaction transaction, Integer variable) {
+    protected void readForReadOnlyTransaction(Transaction transaction, Integer variable) {
         if (isOddVariable(variable)) {
             readOnlyTransactionOddVariable(transaction, variable);
         } else {
@@ -242,7 +242,7 @@ public class TransactionManager {
         }
     }
 
-    private boolean checkWriteStarvation(Transaction transaction, Integer variable, Operation operation, boolean isNewReadOrWrite) {
+    protected boolean checkWriteStarvation(Transaction transaction, Integer variable, Operation operation, boolean isNewReadOrWrite) {
         if (!isNewReadOrWrite || !hasWriteWaiting(operation, variable)) return true;
         addWaitsForWaitingWrite(transaction, operation, variable);
         addWaitingOperation(variable, operation);
@@ -266,7 +266,7 @@ public class TransactionManager {
         FileUtils.log("T" + transaction.getTransactionId() + ": read(x" + variable + ")=" + value + " at site" + site.getSiteId());
     }
 
-    private void write(Operation operation, boolean isNewWrite) {
+    protected void write(Operation operation, boolean isNewWrite) {
         Transaction transaction = getTransactionOrThrowException(operation.getTransactionId());
         if (COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())) {
             FileUtils.log("Finished T " + transaction.getTransactionId() + " trying to write. Ignoring.");
@@ -340,7 +340,7 @@ public class TransactionManager {
         FileUtils.log("T" + transaction.getTransactionId() + ": write(x" + variable + ")=" + writeValue + " at site" + site.getSiteId());
     }
 
-    private void block(Transaction transaction, Site site, Integer variable, Operation operation) {
+    protected void block(Transaction transaction, Site site, Integer variable, Operation operation) {
         if (!site.isUp() || (operation.getOperationType().equals(READ) && !site.isReadAllowed(variable))) {
             addWaitingSite(transaction, site);
             return;
@@ -353,7 +353,7 @@ public class TransactionManager {
         detectDeadlock(transaction);
     }
 
-    private void detectDeadlock(Transaction transaction) {
+    protected void detectDeadlock(Transaction transaction) {
         Optional<Transaction> abortTransaction = deadlockManager.findYoungestDeadlockedTransaction(transaction, waitsForGraph);
         abortTransaction.ifPresent(value -> {
             value.setTransactionStatus(ABORT);
@@ -362,7 +362,7 @@ public class TransactionManager {
     }
 
 
-    private void addWaitingSite(Transaction transaction, Site site) {
+    protected void addWaitingSite(Transaction transaction, Site site) {
         if (Objects.nonNull(site)) {
             List<Site> waitingSitesForTransaction = waitingSites.getOrDefault(transaction.getTransactionId(), new ArrayList<>());
             waitingSitesForTransaction.add(site);
@@ -412,7 +412,7 @@ public class TransactionManager {
         }
     }
 
-    private void wakeupTransactionsWaitingForSite(Site site) {
+    protected void wakeupTransactionsWaitingForSite(Site site) {
         waitingSites.forEach((transactionId, sites) -> {
             Transaction transaction = getTransactionOrThrowException(transactionId);
             Operation currentOperation = transaction.getCurrentOperation();
@@ -433,7 +433,7 @@ public class TransactionManager {
         waitingSites.entrySet().removeIf(entry -> entry.getValue().isEmpty());
     }
 
-    private void wakeupTransactionsWaitingForVariables(Set<Integer> variables) {
+    protected void wakeupTransactionsWaitingForVariables(Set<Integer> variables) {
         variables.forEach(variable -> {
             if (waitingOperations.containsKey(variable)) {
                 LinkedList<Operation> operations = waitingOperations.get(variable);
@@ -460,10 +460,8 @@ public class TransactionManager {
         });
     }
 
-    private void dump() {
-
+    protected void dump() {
         FileUtils.log(Constants.DUMP);
-
         sites.stream().skip(MIN_SITE_ID).forEach(site ->
         {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
@@ -472,11 +470,9 @@ public class TransactionManager {
                 DataValue dataValue = dataTreeMap.get(variableId);
                 sb.append(String.format(" x%d: %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
             });
-            // Removing last comma
-            sb.setLength(sb.length()-1);
+            sb.setLength(sb.length() - 1);
             FileUtils.log(sb.toString());
         });
-
         FileUtils.log(Constants.ASTERISK_LINE);
     }
 }

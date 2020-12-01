@@ -26,11 +26,11 @@ public class Site {
         dataManager = new DataManager();
     }
 
-    public void addDataValue(Integer variable, Integer timestamp, Integer value) {
+    protected void addDataValue(Integer variable, Integer timestamp, Integer value) {
         dataManager.insertData(variable, timestamp, value);
     }
 
-    public void fail() {
+    protected void fail() {
         isUp = false;
         Set<String> abortTransactions = new HashSet<>();
         lockManager.getReadLocks().forEach((variable, transactions) ->
@@ -52,33 +52,33 @@ public class Site {
         if (!abortTransactions.isEmpty()) FileUtils.log(abortTransactions.toString() + " will abort when they end");
     }
 
-    public void recover() {
+    protected void recover() {
         isUp = true;
         dataManager.recover();
         FileUtils.log("Site" + siteId + " recovered!");
     }
 
-    public Integer readValue(Transaction transaction, Integer variable) {
+    protected Integer readValue(Transaction transaction, Integer variable) {
         if (!transaction.isReadOnly()) lockManager.addReadLock(transaction, variable);
         return dataManager.readValue(variable, transaction.isReadOnly(), transaction.getTimestamp());
     }
 
-    public void writeValue(Transaction transaction, Integer variable, Integer writeValue) {
+    protected void writeValue(Transaction transaction, Integer variable, Integer writeValue) {
         lockManager.addWriteLock(transaction, variable);
         dataManager.writeValue(variable, writeValue);
     }
 
-    public void commitValues(Transaction transaction, Integer currentTimestamp) {
+    protected void commitValues(Transaction transaction, Integer currentTimestamp) {
         Set<Integer> writeVariables = lockManager.getWriteVariablesHeldByTransaction(transaction);
         writeVariables.forEach(writeVariable -> dataManager.commitValueForVariable(writeVariable, currentTimestamp, siteId));
     }
 
-    public void moveCurrentValuesBackToCommitted(Transaction transaction, Integer currentTimestamp) {
+    protected void moveCurrentValuesBackToCommitted(Transaction transaction, Integer currentTimestamp) {
         Set<Integer> writeVariables = lockManager.getWriteVariablesHeldByTransaction(transaction);
         writeVariables.forEach(writeVariable -> dataManager.moveValueBackToCommittedValueAtTime(writeVariable, currentTimestamp, siteId));
     }
 
-    public boolean isReadAllowed(Integer variable) {
+    protected boolean isReadAllowed(Integer variable) {
         return isUp && dataManager.isReadAllowed(variable);
     }
 }

@@ -17,7 +17,7 @@ public class DataValue {
         lastCommittedValues.put(timestamp, committedValue);
     }
 
-    public void insertNewCommittedValue(Integer timestamp, Integer committedValue) {
+    protected void insertNewCommittedValue(Integer timestamp, Integer committedValue) {
         if (lastCommittedValues == null) lastCommittedValues = new TreeMap<>();
         lastCommittedValues.put(timestamp, committedValue);
     }

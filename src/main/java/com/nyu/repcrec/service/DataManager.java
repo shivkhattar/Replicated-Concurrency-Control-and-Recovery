@@ -20,12 +20,12 @@ public class DataManager {
         availableForRead = new HashMap<>();
     }
 
-    public void insertData(Integer variable, Integer timestamp, Integer value) {
+    protected void insertData(Integer variable, Integer timestamp, Integer value) {
         data.put(variable, new DataValue(value, timestamp, value));
         availableForRead.put(variable, true);
     }
 
-    public Integer readValue(Integer variable, boolean readCommittedValue, Integer timestamp) {
+    protected Integer readValue(Integer variable, boolean readCommittedValue, Integer timestamp) {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in readValue!");
         }
@@ -33,7 +33,7 @@ public class DataManager {
         return readCommittedValue ? dataValue.getLastCommittedValues().floorEntry(timestamp).getValue() : dataValue.getCurrentValue();
     }
 
-    public void writeValue(Integer variable, Integer writeValue) {
+    protected void writeValue(Integer variable, Integer writeValue) {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in readValue!");
         }
@@ -41,7 +41,7 @@ public class DataManager {
         values.setCurrentValue(writeValue);
     }
 
-    public void commitValueForVariable(Integer variable, Integer currentTimestamp, Integer siteId) {
+    protected void commitValueForVariable(Integer variable, Integer currentTimestamp, Integer siteId) {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in moveValueBackToCommittedValueAtTime!");
         }
@@ -52,7 +52,7 @@ public class DataManager {
 
     }
 
-    public void moveValueBackToCommittedValueAtTime(Integer variable, Integer timestamp, Integer siteId) {
+    protected void moveValueBackToCommittedValueAtTime(Integer variable, Integer timestamp, Integer siteId) {
         if (!data.containsKey(variable)) {
             throw new RepCRecException("Invalid variable accessed in moveValueBackToCommittedValueAtTime!");
         }
@@ -62,17 +62,17 @@ public class DataManager {
         values.setCurrentValue(committedValue);
     }
 
-    public void fail() {
+    protected void fail() {
         availableForRead.keySet().forEach(variable -> availableForRead.put(variable, false));
     }
 
-    public void recover() {
+    protected void recover() {
         availableForRead.keySet().forEach(variable -> {
             if (variable % 2 == 1) availableForRead.put(variable, true);
         });
     }
 
-    public boolean isReadAllowed(Integer variable) {
+    protected boolean isReadAllowed(Integer variable) {
         return availableForRead.getOrDefault(variable, false);
     }
 }

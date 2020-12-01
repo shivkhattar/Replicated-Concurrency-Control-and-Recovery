@@ -18,8 +18,8 @@ public class DeadlockManager {
         return deadlockManager;
     }
 
-    public Optional<Transaction> findYoungestDeadlockedTransaction(Transaction transaction,
-                                                                   final Map<Integer, List<Transaction>> waitsForGraph) {
+    protected Optional<Transaction> findYoungestDeadlockedTransaction(Transaction transaction,
+                                                                      final Map<Integer, List<Transaction>> waitsForGraph) {
         if (transaction == null) {
             throw new RepCRecException("Transaction cannot be null for a detecting deadlock");
         }

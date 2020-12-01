@@ -15,11 +15,11 @@ public class Transactions {
         transactions = new HashMap<>();
     }
 
-    public void put(Transaction transaction) {
+    protected void put(Transaction transaction) {
         transactions.put(transaction.getTransactionId(), transaction);
     }
 
-    public Optional<Transaction> get(Integer transactionId) {
+    protected Optional<Transaction> get(Integer transactionId) {
         return Optional.ofNullable(transactions.get(transactionId));
     }
 }
