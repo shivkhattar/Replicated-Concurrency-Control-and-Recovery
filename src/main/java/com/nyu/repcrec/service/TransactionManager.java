@@ -490,9 +490,9 @@ public class TransactionManager {
             Set<Integer> visited = new HashSet<>();
 
             if (detectCycle(visited, currentTransaction, currentTransaction)) {
-                if (youngestTransaction != null && currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()) {
+                if(youngestTransaction == null){
                     youngestTransaction = currentTransaction;
-                } else {
+                } else if(currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()){
                     youngestTransaction = currentTransaction;
                 }
             }
