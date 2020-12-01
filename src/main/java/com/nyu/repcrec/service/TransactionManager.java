@@ -352,8 +352,8 @@ public class TransactionManager {
     }
 
     private void detectDeadlock(Transaction transaction) {
-        DeadlockManager deadlockDetection = new DeadlockManager(waitsForGraph);
-        Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction);
+        DeadlockManager deadlockDetection = DeadlockManager.getInstance();
+        Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction, waitsForGraph);
         abortTransaction.ifPresent(value -> {
             value.setTransactionStatus(ABORT);
             endTransaction(value.getTransactionId());
@@ -466,17 +466,13 @@ public class TransactionManager {
         sites.stream().skip(MIN_SITE_ID).forEach(site ->
         {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
-            StringBuilder sb = new StringBuilder(String.format("// site %d-", site.getSiteId()));
+            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
             dataTreeMap.keySet().forEach(variableId -> {
                 DataValue dataValue = dataTreeMap.get(variableId);
-                sb.append(String.format(" x%d:%d", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
-                //            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
-//            dataTreeMap.keySet().forEach(variableId -> {
-//                DataValue dataValue = dataTreeMap.get(variableId);
-//                sb.append(String.format(" x%d : %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
+                sb.append(String.format(" x%d: %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
             });
             // Removing last comma
-//            sb.setLength(sb.length()-1);
+            sb.setLength(sb.length()-1);
             FileUtils.log(sb.toString());
         });
 

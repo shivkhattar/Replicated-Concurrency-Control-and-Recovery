@@ -1,17 +1,25 @@
 package com.nyu.repcrec.service;
 
-import lombok.RequiredArgsConstructor;
-
 import java.util.*;
 
-@RequiredArgsConstructor
 public class DeadlockManager {
 
-    private final Map<Integer, List<Transaction>> waitsForGraph;
+    private static DeadlockManager deadlockManager = null;
 
-    private Transaction youngestTransaction = null;
+    private Transaction youngestTransaction;
 
-    public Optional<Transaction> findYoungestDeadlockedTransaction(Transaction transaction){
+    private DeadlockManager(){
+    }
+
+    public static DeadlockManager getInstance(){
+        if(deadlockManager == null){
+            deadlockManager = new DeadlockManager();
+        }
+        return deadlockManager;
+    }
+
+    public Optional<Transaction> findYoungestDeadlockedTransaction(Transaction transaction,
+                                                                   final Map<Integer, List<Transaction>> waitsForGraph){
         if(transaction == null){
             throw new RepCRecException("Transaction cannot be null for a detecting deadlock");
         }
@@ -20,10 +28,10 @@ public class DeadlockManager {
 
         youngestTransaction = transaction;
 
-        return detectCycle(visited, transaction) ? Optional.of(youngestTransaction) : Optional.empty();
+        return detectCycle(visited, transaction, waitsForGraph) ? Optional.of(youngestTransaction) : Optional.empty();
     }
 
-    private boolean detectCycle(Set<Integer> visited, Transaction currentTransaction){
+    private boolean detectCycle(Set<Integer> visited, Transaction currentTransaction, final Map<Integer, List<Transaction>> waitsForGraph){
 
         if(currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()){
             youngestTransaction = currentTransaction;
@@ -35,7 +43,7 @@ public class DeadlockManager {
 
         for(Transaction nextTransaction : connectedTransactions){
             if(!visited.contains(nextTransaction.getTransactionId())){
-                if(detectCycle(visited, nextTransaction)) {
+                if(detectCycle(visited, nextTransaction, waitsForGraph)) {
                     return true;
                 }
             } else {
@@ -45,5 +53,4 @@ public class DeadlockManager {
 
         return false;
     }
-
 }

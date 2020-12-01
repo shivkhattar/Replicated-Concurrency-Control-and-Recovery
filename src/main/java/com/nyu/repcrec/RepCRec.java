@@ -16,7 +16,7 @@ public class RepCRec {
         try {
             // Defaults to input resource directory if directory not provided
             if(args.length == 0){
-                args = new String[]{Constants.RESOURCE_DIR_PATH + "/input/input-21"};
+                args = new String[]{Constants.RESOURCE_DIR_PATH + "/input"};
             }
             final File folder = new File(args[0]);
 
