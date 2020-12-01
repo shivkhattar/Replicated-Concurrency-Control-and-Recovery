@@ -16,5 +16,4 @@ output/
 *.log
 
 # reporzip
-*.rpz
 .reprozip-trace/
