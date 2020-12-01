@@ -22,7 +22,6 @@ public class TransactionManager {
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
     private Map<Integer, LinkedList<Operation>> waitingOperations;
-    private Transaction youngestTransaction;
 
     private static final Integer MIN_SITE_ID = 1;
     private static final Integer MAX_SITE_ID = 10;
@@ -484,11 +483,11 @@ public class TransactionManager {
     }
 
     private Optional<Transaction> findYoungestDeadlockedTransaction() {
-        youngestTransaction = null;
+        Transaction youngestTransaction = null;
+
         for (Integer currentTransactionId : waitsForGraph.keySet()) {
             Transaction currentTransaction = getTransactionOrThrowException(currentTransactionId);
             Set<Integer> visited = new HashSet<>();
-
             if (detectCycle(visited, currentTransaction, currentTransaction)) {
                 if(youngestTransaction == null){
                     youngestTransaction = currentTransaction;
