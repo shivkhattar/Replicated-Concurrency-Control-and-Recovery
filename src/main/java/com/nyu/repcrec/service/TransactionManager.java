@@ -22,7 +22,7 @@ public class TransactionManager {
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
     private Map<Integer, LinkedList<Operation>> waitingOperations;
-    private DeadlockManager deadlockDetection;
+    private DeadlockManager deadlockManager;
 
     private static final Integer MIN_SITE_ID = 1;
     private static final Integer MAX_SITE_ID = 10;
@@ -36,7 +36,7 @@ public class TransactionManager {
         waitsForGraph = new HashMap<>();
         waitingSites = new HashMap<>();
         waitingOperations = new HashMap<>();
-        deadlockDetection = DeadlockManager.getInstance();
+        deadlockManager = DeadlockManager.getInstance();
 
         //Create 11 new sites, first one being the dummy site
         for (int i = 0; i <= MAX_SITE_ID; i++) sites.add(new Site(i));
@@ -354,7 +354,7 @@ public class TransactionManager {
     }
 
     private void detectDeadlock(Transaction transaction) {
-        Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction, waitsForGraph);
+        Optional<Transaction> abortTransaction = deadlockManager.findYoungestDeadlockedTransaction(transaction, waitsForGraph);
         abortTransaction.ifPresent(value -> {
             value.setTransactionStatus(ABORT);
             endTransaction(value.getTransactionId());
