@@ -22,7 +22,7 @@ public class TransactionManager {
     private Map<Integer, List<Site>> waitingSites;
     //variable -> List<Operation>
     private Map<Integer, LinkedList<Operation>> waitingOperations;
-    private DeadlockManager deadlockDetection; = DeadlockManager.getInstance();
+    private DeadlockManager deadlockDetection;
 
     private static final Integer MIN_SITE_ID = 1;
     private static final Integer MAX_SITE_ID = 10;
