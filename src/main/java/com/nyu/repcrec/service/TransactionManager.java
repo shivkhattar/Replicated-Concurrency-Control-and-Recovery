@@ -109,6 +109,12 @@ public class TransactionManager {
     private void endTransaction(Integer transactionId) {
         Transaction transaction = getTransactionOrThrowException(transactionId);
         Set<Integer> variablesHeldByTransaction = new LinkedHashSet<>();
+
+        if(COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())){
+            FileUtils.log(String.format("T%d is already %s", transactionId, transaction.getTransactionStatus().name().toLowerCase()));
+            return;
+        }
+
         transaction.setTransactionStatus(ACTIVE.equals(transaction.getTransactionStatus()) ? COMMITTED : ABORTED);
         FileUtils.log("T" + transactionId + " " + transaction.getTransactionStatus().name().toLowerCase());
         for (Integer siteId = MIN_SITE_ID; siteId <= MAX_SITE_ID; siteId++) {
