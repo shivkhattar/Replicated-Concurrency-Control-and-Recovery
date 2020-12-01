@@ -8,6 +8,7 @@ import com.nyu.repcrec.util.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 public class RepCRec {
 
@@ -22,7 +23,7 @@ public class RepCRec {
             if(!folder.isDirectory()){
                 executeInputFile(folder);
             } else {
-                for (final File fileEntry : folder.listFiles()) {
+                for (final File fileEntry : Objects.requireNonNull(folder.listFiles())) {
                     executeInputFile(fileEntry);
                 }
             }

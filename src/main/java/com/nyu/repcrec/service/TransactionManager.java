@@ -80,7 +80,7 @@ public class TransactionManager {
                 read(operation, true);
                 break;
             case WRITE:
-                write(operation);
+                write(operation, true);
                 break;
             case DUMP:
                 dump();
@@ -240,10 +240,11 @@ public class TransactionManager {
         }
     }
 
-    private boolean checkWriteStarvation(Transaction transaction, Integer variable, Operation operation, boolean isNewRead) {
-        if (!isNewRead || !hasWriteWaiting(operation, variable)) return true;
+    private boolean checkWriteStarvation(Transaction transaction, Integer variable, Operation operation, boolean isNewReadOrWrite) {
+        if (!isNewReadOrWrite || !hasWriteWaiting(operation, variable)) return true;
         addWaitsForWaitingWrite(transaction, operation, variable);
         addWaitingOperation(variable, operation);
+        detectDeadlock(transaction);
         return false;
     }
 
@@ -263,7 +264,7 @@ public class TransactionManager {
         FileUtils.log("T" + transaction.getTransactionId() + ": read(x" + variable + ")=" + value + " at site" + site.getSiteId());
     }
 
-    private void write(Operation operation) {
+    private void write(Operation operation, boolean isNewWrite) {
         Transaction transaction = getTransactionOrThrowException(operation.getTransactionId());
         if (COMMITTED.equals(transaction.getTransactionStatus()) || ABORTED.equals(transaction.getTransactionStatus())) {
             FileUtils.log("Finished T " + transaction.getTransactionId() + " trying to write. Ignoring.");
@@ -273,22 +274,26 @@ public class TransactionManager {
         Integer writeValue = operation.getWriteValue();
 
         transaction.setCurrentOperation(operation);
-        if (isOddVariable(variable)) writeOddVariable(transaction, variable, writeValue, operation);
-        else writeEvenVariable(transaction, variable, writeValue, operation);
+        if (isOddVariable(variable)) writeOddVariable(transaction, variable, writeValue, operation, isNewWrite);
+        else writeEvenVariable(transaction, variable, writeValue, operation, isNewWrite);
     }
 
-    private void writeOddVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation) {
+    private void writeOddVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation, boolean isNewWrite) {
         Site site = sites.get(getSiteIdForOddVariable(variable));
         if (canWriteOddVariable(transaction, variable)) {
-            writeVariable(transaction, variable, writeValue, site);
+            if (checkWriteStarvation(transaction, variable, operation, isNewWrite)) {
+                writeVariable(transaction, variable, writeValue, site);
+            }
         } else {
             block(transaction, site, variable, operation);
         }
     }
 
-    private void writeEvenVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation) {
+    private void writeEvenVariable(Transaction transaction, Integer variable, Integer writeValue, Operation operation, boolean isNewWrite) {
         if (canWriteEvenVariable(transaction, variable)) {
-            sites.stream().skip(MIN_SITE_ID).filter(Site::isUp).forEach(site -> writeVariable(transaction, variable, writeValue, site));
+            if (checkWriteStarvation(transaction, variable, operation, isNewWrite)) {
+                sites.stream().skip(MIN_SITE_ID).filter(Site::isUp).forEach(site -> writeVariable(transaction, variable, writeValue, site));
+            }
         } else {
             if (allSitesDown()) {
                 sites.stream().skip(MIN_SITE_ID).forEach(site -> addWaitingSite(transaction, site));
@@ -343,18 +348,18 @@ public class TransactionManager {
         } else if (operation.getOperationType().equals(WRITE)) {
             blockWrite(transaction, site, variable, operation);
         }
-        //TODO: Add Deadlock detection
+        detectDeadlock(transaction);
+    }
 
+    private void detectDeadlock(Transaction transaction) {
         DeadlockManager deadlockDetection = new DeadlockManager(waitsForGraph);
-
         Optional<Transaction> abortTransaction = deadlockDetection.findYoungestDeadlockedTransaction(transaction);
-
         abortTransaction.ifPresent(value -> {
             value.setTransactionStatus(ABORT);
             endTransaction(value.getTransactionId());
         });
-
     }
+
 
     private void addWaitingSite(Transaction transaction, Site site) {
         if (Objects.nonNull(site)) {
@@ -386,14 +391,15 @@ public class TransactionManager {
         waitsFor.forEach(waitsForTransaction -> addToWaitingTransactions(waitsForTransaction, transaction, site, variable));
     }
 
-    private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer variable) {
+    private void addToWaitingTransactions(Transaction waitsFor, Transaction transaction, Site site, Integer
+            variable) {
         if (waitsFor.getTransactionId().equals(transaction.getTransactionId())) return;
         List<Transaction> waitingList = waitsForGraph.getOrDefault(waitsFor.getTransactionId(), new ArrayList<>());
         if (!waitingList.contains(transaction)) {
             waitingList.add(transaction);
             waitsForGraph.put(waitsFor.getTransactionId(), waitingList);
             FileUtils.log("T" + transaction.getTransactionId() + " waits for T" + waitsFor.getTransactionId() + " for x" + variable
-                    + (Objects.isNull(site) ? "because of write waiting" : " at site" + site.getSiteId()));
+                    + (Objects.isNull(site) ? " because of write waiting" : " at site" + site.getSiteId()));
         }
     }
 
@@ -418,7 +424,7 @@ public class TransactionManager {
             } else if (WRITE.equals(currentOperation.getOperationType())) {
                 if (sites.contains(site)) {
                     FileUtils.log("T" + transactionId + " woken up since site" + site.getSiteId() + " is up!");
-                    write(currentOperation);
+                    write(currentOperation, true);
                     sites.clear();
                 }
             } else throw new RepCRecException("T" + transactionId + " should not be waiting for sites!");
@@ -441,7 +447,7 @@ public class TransactionManager {
                         } else canReadOrWrite = false;
                     } else if (WRITE.equals(operation.getOperationType())) {
                         if (canWrite(transaction, variable)) {
-                            write(operation);
+                            write(operation, false);
                             operations.removeFirst();
                         } else canReadOrWrite = false;
                     } else {
@@ -457,17 +463,17 @@ public class TransactionManager {
 
         FileUtils.log(Constants.DUMP);
 
-        sites.stream().skip(MIN_SITE_ID).forEach( site ->
+        sites.stream().skip(MIN_SITE_ID).forEach(site ->
         {
             TreeMap<Integer, DataValue> dataTreeMap = site.getDataManager().getData();
             StringBuilder sb = new StringBuilder(String.format("// site %d-", site.getSiteId()));
             dataTreeMap.keySet().forEach(variableId -> {
-            DataValue dataValue = dataTreeMap.get(variableId);
-            sb.append(String.format(" x%d:%d", variableId, dataValue.getCurrentValue()));
-            //            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
+                DataValue dataValue = dataTreeMap.get(variableId);
+                sb.append(String.format(" x%d:%d", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
+                //            StringBuilder sb = new StringBuilder(String.format("Site %d - ", site.getSiteId()));
 //            dataTreeMap.keySet().forEach(variableId -> {
 //                DataValue dataValue = dataTreeMap.get(variableId);
-//                sb.append(String.format(" x%d : %d,", variableId, dataValue.getCurrentValue()));
+//                sb.append(String.format(" x%d : %d,", variableId, dataValue.getLastCommittedValues().lastEntry().getValue()));
             });
             // Removing last comma
 //            sb.setLength(sb.length()-1);
