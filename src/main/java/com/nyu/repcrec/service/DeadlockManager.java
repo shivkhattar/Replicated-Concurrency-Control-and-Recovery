@@ -8,19 +8,19 @@ public class DeadlockManager {
 
     private Transaction youngestTransaction;
 
-    private DeadlockManager(){
+    private DeadlockManager() {
     }
 
-    public static DeadlockManager getInstance(){
-        if(deadlockManager == null){
+    public static DeadlockManager getInstance() {
+        if (deadlockManager == null) {
             deadlockManager = new DeadlockManager();
         }
         return deadlockManager;
     }
 
     public Optional<Transaction> findYoungestDeadlockedTransaction(Transaction transaction,
-                                                                   final Map<Integer, List<Transaction>> waitsForGraph){
-        if(transaction == null){
+                                                                   final Map<Integer, List<Transaction>> waitsForGraph) {
+        if (transaction == null) {
             throw new RepCRecException("Transaction cannot be null for a detecting deadlock");
         }
 
@@ -31,9 +31,9 @@ public class DeadlockManager {
         return detectCycle(visited, transaction, waitsForGraph) ? Optional.of(youngestTransaction) : Optional.empty();
     }
 
-    private boolean detectCycle(Set<Integer> visited, Transaction currentTransaction, final Map<Integer, List<Transaction>> waitsForGraph){
+    private boolean detectCycle(Set<Integer> visited, Transaction currentTransaction, final Map<Integer, List<Transaction>> waitsForGraph) {
 
-        if(currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()){
+        if (currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()) {
             youngestTransaction = currentTransaction;
         }
 
@@ -41,9 +41,9 @@ public class DeadlockManager {
 
         List<Transaction> connectedTransactions = waitsForGraph.getOrDefault(currentTransaction.getTransactionId(), new LinkedList<>());
 
-        for(Transaction nextTransaction : connectedTransactions){
-            if(!visited.contains(nextTransaction.getTransactionId())){
-                if(detectCycle(visited, nextTransaction, waitsForGraph)) {
+        for (Transaction nextTransaction : connectedTransactions) {
+            if (!visited.contains(nextTransaction.getTransactionId())) {
+                if (detectCycle(visited, nextTransaction, waitsForGraph)) {
                     return true;
                 }
             } else {
