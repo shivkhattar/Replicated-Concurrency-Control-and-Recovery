@@ -32,5 +32,5 @@
   `pip install -U reprounzip[all]`  
  
  #### Unpack and run using reprounzip
- - `reprounzip vagrant setup my_experiment.rpz <dest_directory>`  
+ - `reprounzip vagrant setup RepCRec.rpz <dest_directory>`  
  - `reprounzip vagrant run <dest_directory>`
