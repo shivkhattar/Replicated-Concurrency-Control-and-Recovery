@@ -34,5 +34,9 @@ A distributed database, complete with multiversion concurrency control, deadlock
   `pip install -U reprounzip[all]`  
  
  #### Unpack and run using reprounzip
- - `reprounzip vagrant setup RepCRec.rpz <dest_directory>`  
- - `reprounzip vagrant run <dest_directory>`
+ - unpack and setup the `.rpz` file  
+   `reprounzip vagrant setup RepCRec.rpz <dest_directory>`  
+ - run with the default file   
+    `reprounzip vagrant run <dest_directory>`  
+ - To change the input file   
+  `reprounzip vagrant upload <dest_directory> <input_path>:arg4`  
