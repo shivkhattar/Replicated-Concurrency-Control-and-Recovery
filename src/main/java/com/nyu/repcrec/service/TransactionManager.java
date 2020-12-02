@@ -360,8 +360,9 @@ public class TransactionManager {
     private void detectDeadlock() {
         Optional<Transaction> abortTransaction = findYoungestDeadlockedTransaction();
         while (abortTransaction.isPresent()) {
-            abortTransaction.get().setTransactionStatus(ABORT);
-            endTransaction(abortTransaction.get().getTransactionId());
+            Transaction transaction = abortTransaction.get();
+            transaction.setTransactionStatus(ABORT);
+            endTransaction(transaction.getTransactionId());
             abortTransaction = findYoungestDeadlockedTransaction();
         }
     }
@@ -484,28 +485,23 @@ public class TransactionManager {
 
     private Optional<Transaction> findYoungestDeadlockedTransaction() {
         Transaction youngestTransaction = null;
-
         for (Integer currentTransactionId : waitsForGraph.keySet()) {
             Transaction currentTransaction = getTransactionOrThrowException(currentTransactionId);
             Set<Integer> visited = new HashSet<>();
             if (detectCycle(visited, currentTransaction, currentTransaction)) {
-                if(youngestTransaction == null){
+                if (youngestTransaction == null) {
                     youngestTransaction = currentTransaction;
-                } else if(currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()){
+                } else if (currentTransaction.getTimestamp() > youngestTransaction.getTimestamp()) {
                     youngestTransaction = currentTransaction;
                 }
             }
         }
-
         return Optional.ofNullable(youngestTransaction);
     }
 
     private boolean detectCycle(Set<Integer> visited, Transaction currentTransaction, Transaction startingTransaction) {
-
         visited.add(currentTransaction.getTransactionId());
-
         List<Transaction> connectedTransactions = waitsForGraph.getOrDefault(currentTransaction.getTransactionId(), new LinkedList<>());
-
         for (Transaction nextTransaction : connectedTransactions) {
             if (nextTransaction.equals(startingTransaction))
                 return true;
@@ -515,7 +511,6 @@ public class TransactionManager {
                 }
             }
         }
-
         return false;
     }
 }

@@ -1,7 +1,6 @@
 package com.nyu.repcrec.util;
 
 import com.nyu.repcrec.service.Operation;
-import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -16,7 +15,7 @@ public class FileUtils {
     private static String outputFile = "src/main/resources/output/output-0";
 
     public static List<Operation> parseFile(String inputFile) throws IOException {
-        if (StringUtils.isEmpty(inputFile)) {
+        if (inputFile == null || inputFile.isEmpty()) {
             throw new IOException("Input path not provided");
         }
 
@@ -78,10 +77,10 @@ public class FileUtils {
     }
 
     public static void createOutputFile(String outputDirectoryPath, String outputFileName) throws IOException {
-        if (StringUtils.isEmpty(outputDirectoryPath)) {
+        if (outputDirectoryPath == null || outputDirectoryPath.isEmpty()) {
             throw new IOException("Output path not provided");
         }
-        if (StringUtils.isEmpty(outputFileName)) {
+        if (outputFileName == null || outputFileName.isEmpty()) {
             throw new IOException("Output file name not provided");
         }
         File directory = new File(outputDirectoryPath);
