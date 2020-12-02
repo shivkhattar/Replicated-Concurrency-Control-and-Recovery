@@ -36,7 +36,7 @@ public class RepCRec {
 
     public static void executeInputFile(File fileEntry) throws IOException {
         FileUtils.createOutputFile(Constants.RESOURCE_DIR_PATH + "/output", fileEntry.getName() + "-output");
-        FileUtils.log(String.format(Constants.INPUT_FILE, fileEntry.getName()));
+        FileUtils.log(Constants.INPUT_FILE);
         List<Operation> operations = FileUtils.parseFile(fileEntry.getPath());
         executeOperations(operations);
         FileUtils.log(Constants.ASTERISK_LINE);
